@@ -6,6 +6,7 @@ import time
 
 import aiohttp
 import async_timeout
+import lxml.html
 from tqdm import tqdm
 
 from proxies import proxies
@@ -19,10 +20,11 @@ logger.setLevel(settings.LOG_LEVEL)
 
 
 class CheckResult:
-    def __init__(self, response, proxy, time=None):
-        self._response = response
+    def __init__(self, is_passed, proxy, status=None, time=None):
         self.proxy = proxy
         self.time = time
+        self.is_passed = is_passed
+        self.status = status
         self.logger = logging.getLogger(__class__.__name__)
         self.logger.setLevel(settings.LOG_LEVEL)
 
@@ -33,41 +35,28 @@ class CheckResult:
         else:
             return -1
 
-    @property
-    def is_expected(self):
-        raise NotImlemented()
-
     def __bool__(self):
-        return bool(self.is_expected)
+        return bool(self.is_passed)
 
     def __repr__(self):
-        return '<CheckResult {} proxy={} time={:0.0f}ms>'.format(self.is_expected, self.proxy, self.time*1000)
-
-
-class HttpCheckResult(CheckResult):
-    def __init__(self, *args, expected_status_code=[200], **kwargs):
-        super().__init__(*args, **kwargs)
-        if expected_status_code == None:
-            self.expected_status_code = None
-        elif isinstance(expected_status_code, collections.Iterable):
-            self.expected_status_code = [int(x) for x in expected_status_code]
-        else:
-            self.expected_status_code = int(expected_status_code)
-
-    @property
-    def is_expected(self):
-        if self.status_code not in self.expected_status_code:
-            return False
-        return True
+        return '<{} {} proxy={} time={:0.0f}ms>'.format(__class__.__name__, self.is_passed, self.proxy, self.time*1000)
 
 
 class Check:
-    def __init__(self, url, timeout=5, expected_result=HttpCheckResult):
+    def __init__(self, url, status=None, xpath=None, timeout=5):
         self.url = url
-        self.expected_result = expected_result
         self.timeout = timeout
         self.logger = logging.getLogger(__class__.__name__)
         self.logger.setLevel(settings.LOG_LEVEL)
+
+        if status is None:
+            self.expected_status_code = None
+        elif isinstance(status, collections.Iterable) and not isinstance(status, str):
+            self.expected_status_code = [int(x) for x in status]
+        else:
+            self.expected_status_code = [int(status)]
+
+        self.check_xpath = [xpath] if isinstance(xpath, str) else xpath
 
     async def check(self, proxy):
         possible_exceptions = (
@@ -83,26 +72,53 @@ class Check:
         self.logger.debug('Started check for {} on {}'.format(proxy, self.url))
         try:
             async with async_timeout.timeout(self.timeout):
-                async with aiohttp.ClientSession(conn_timeout=self.timeout, read_timeout=self.timeout) as session:
+                async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False), conn_timeout=self.timeout, read_timeout=self.timeout) as session:
                     async with session.get(self.url, proxy=str(proxy)) as response:
-                        await response.read()
+                        content = await response.read()
                         result = response
         except possible_exceptions as e:
-            result = self.expected_result(e.__class__, proxy)
-
+            result = e
         delta_time = time.time() - start_time
-        self.logger.info('Finished check (is alive: {}) for {} on {} by {:0.3f} s'.format(bool(result), proxy, self.url, delta_time))
 
-        check_result = self.expected_result(result, proxy, time=delta_time)
+        is_passed = True
+        if isinstance(result, aiohttp.client_reqrep.ClientResponse):
+            if self.check_xpath is not None:
+                try:
+                    doc = lxml.html.fromstring(content)
+                    for xpath in self.check_xpath:
+                        xpath_result = doc.xpath(xpath)
+                        if not xpath_result:
+                            is_passed = False
+                            break
+                except lxml.etree.ParserError:
+                    is_passed = False
+
+            if self.expected_status_code and int(result.status) not in self.expected_status_code:
+                is_passed = False
+        else:
+            is_passed = False
+
+        if is_passed:
+            try:
+                self.logger.info(content)
+            except:
+                pass
+
+        if isinstance(result, aiohttp.client_reqrep.ClientResponse):
+            status = int(result.status)
+        else:
+            status = None
+
+        check_result = CheckResult(is_passed, proxy, time=delta_time, status=status)
         proxy.add_check(check_result)
 
+        self.logger.info('Finished check (is passed: {}) for {} on {} by {:0.3f} s'.format(is_passed, proxy, self.url, delta_time))
         return check_result
 
 
 class MultiCheck:
     def __init__(self, *args, timeout=5):
         self.checks = args
-
         for check in self.checks:
             check.timeout = timeout
 

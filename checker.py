@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 
 import entity
 import settings
@@ -17,7 +18,7 @@ class Manager:
 
     async def start(self):
         c = entity.MultiCheck(
-            
+            *self.checks,
             timeout=self.timeout
         )
 
@@ -47,11 +48,12 @@ def main():
     from proxies import proxies
     global proxies
 
-    m = Manager()
-    m.checks.append(entity.Check('http://google.com'))
-    m.checks.append(entity.Check('http://yandex.ru'))
-    m.checks.append(entity.Check('http://amazon.com'))
-    m.checks.append(entity.Check('http://ifconfig.so'))
+    start_time = time.time()
+    m = Manager(concurent_requests=999, timeout=10)
+    # m.checks.append(entity.Check('http://google.com', status=[200, 301], xpath='.//a[contains(@href, "google" and text()="here")]|.//input[contains(@name, "btnG")]'))
+    # m.checks.append(entity.Check('http://yandex.ru', status=[200, 302], xpath='.//body'))
+    m.checks.append(entity.Check('http://www.amazon.com/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords=Xiaomi+MI+A1+(64GB%2C+4GB+RAM)&rh=i%3Aaps%2Ck%3AXiaomi+MI+A1+(64GB%5Cc+4GB+RAM)'))
+    # m.checks.append(entity.Check('http://ifconfig.so', status=[200, 302], xpath='.//body'))
 
     proxies = [entity.Proxy(*x.split(':')) for x in proxies]
     for proxy in proxies:
@@ -61,8 +63,12 @@ def main():
     loop.run_until_complete(m.start())
     loop.close()
 
-    for proxy in sorted(filter(lambda x: x.alive, proxies), key=lambda x: x.time):
-        m.logger.info('{:0.3f} s, {}'.format(proxy.time, proxy))
+    alive = sorted(filter(lambda x: x.alive, proxies), key=lambda x: x.time)
+    for proxy in alive:
+        m.logger.info('{:0.3f} s, {},'.format(proxy.time, proxy, proxy.checks[0].status))
+
+    delta_time = time.time() - start_time
+    m.logger.info('{}/{} proxies alive. Checked {} proxies for {:0.2f} s. {:0.0f} proxies per second.'.format(len(alive), len(proxies), len(proxies), delta_time, len(proxies)/delta_time))
 
 
 if __name__ == '__main__':
