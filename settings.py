@@ -1,0 +1,6 @@
+import logging
+
+
+LOG_LEVEL = logging.INFO
+DEFAULT_TIMEOUT = 2
+DEFAULT_CONCURENT_REQUESTS = 50
