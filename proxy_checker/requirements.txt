@@ -1,3 +1,4 @@
 aiohttp==3.2.1
 lxml==4.2.1
+tqdm==4.23.4
 unqlite==0.7.0
