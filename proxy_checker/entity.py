@@ -98,12 +98,6 @@ class Check:
         else:
             is_passed = False
 
-        if is_passed:
-            try:
-                self.logger.info(content)
-            except:
-                pass
-
         if isinstance(result, aiohttp.client_reqrep.ClientResponse):
             status = int(result.status)
         else:

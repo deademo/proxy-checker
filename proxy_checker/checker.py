@@ -49,8 +49,8 @@ def main():
     global proxies
 
     start_time = time.time()
-    m = Manager(concurent_requests=999, timeout=10)
-    # m.checks.append(entity.Check('http://google.com', status=[200, 301], xpath='.//a[contains(@href, "google" and text()="here")]|.//input[contains(@name, "btnG")]'))
+    m = Manager(concurent_requests=50, timeout=10)
+    m.checks.append(entity.Check('http://google.com', status=[200, 301], xpath='.//a[contains(@href, "google" and text()="here")]|.//input[contains(@name, "btnG")]'))
     # m.checks.append(entity.Check('http://yandex.ru', status=[200, 302], xpath='.//body'))
     m.checks.append(entity.Check('http://www.amazon.com/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords=Xiaomi+MI+A1+(64GB%2C+4GB+RAM)&rh=i%3Aaps%2Ck%3AXiaomi+MI+A1+(64GB%5Cc+4GB+RAM)'))
     # m.checks.append(entity.Check('http://ifconfig.so', status=[200, 302], xpath='.//body'))
