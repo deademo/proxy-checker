@@ -4,6 +4,7 @@ import concurrent
 import logging
 import random
 import time
+import urllib.parse
 
 import aiohttp
 import async_timeout
@@ -13,6 +14,7 @@ from tqdm import tqdm
 from proxies import proxies
 import session_sets
 import settings
+import xpath_check
 
 
 
@@ -26,11 +28,13 @@ def random_session():
 
 
 class CheckResult:
-    def __init__(self, is_passed, proxy, status=None, time=None):
+    def __init__(self, proxy, is_passed, is_banned, check=None, status=None, time=None):
         self.proxy = proxy
-        self.time = time
         self.is_passed = is_passed
+        self.is_banned = is_banned
+        self.check = check
         self.status = status
+        self.time = time
         self.logger = logging.getLogger(__class__.__name__)
         self.logger.setLevel(settings.LOG_LEVEL)
 
@@ -90,16 +94,21 @@ class Check:
         delta_time = time.time() - start_time
 
         is_passed = True
+        is_banned = False
         if isinstance(result, aiohttp.client_reqrep.ClientResponse):
             if self.check_xpath is not None:
+                any_xpath_worked = False
                 try:
                     doc = lxml.html.fromstring(content)
                     for xpath in self.check_xpath:
                         xpath_result = doc.xpath(xpath)
-                        if not xpath_result:
-                            is_passed = False
-                            break
-                except lxml.etree.ParserError:
+                        if xpath_result:
+                            any_xpath_worked = True
+                        if xpath_result and isinstance(xpath, xpath_check.BanXPathCheck):
+                            is_banned = True
+                except (lxml.etree.ParserError, lxml.etree.XMLSyntaxError):
+                    pass
+                if not any_xpath_worked:
                     is_passed = False
 
             if self.expected_status_code and int(result.status) not in self.expected_status_code:
@@ -114,7 +123,7 @@ class Check:
         else:
             status = None
 
-        check_result = CheckResult(is_passed, proxy, time=delta_time, status=status)
+        check_result = CheckResult(proxy, is_passed, is_banned, check=self, time=delta_time, status=status)
         proxy.add_check(check_result)
 
         self.logger.debug('Finished check (is passed: {}) for {} on {} by {:0.3f} s'.format(is_passed, proxy, self.url, delta_time))
@@ -153,5 +162,13 @@ class Proxy:
         return sum([x.time for x in self.checks])/len(self.checks)
 
     @property
-    def alive(self):
+    def is_alive(self):
         return all(self.checks)
+
+    @property
+    def is_banned_somewhere(self):
+        return any([x.is_banned for x in self.checks])
+
+    @property
+    def banned_on(self):
+        return [x.check.domain for x in self.checks if x.is_banned]
