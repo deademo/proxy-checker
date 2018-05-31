@@ -2,6 +2,7 @@ import asyncio
 import collections
 import concurrent
 import logging
+import random
 import time
 
 import aiohttp
@@ -10,6 +11,7 @@ import lxml.html
 from tqdm import tqdm
 
 from proxies import proxies
+import session_sets
 import settings
 
 
@@ -17,6 +19,10 @@ import settings
 logging.basicConfig(format='%(asctime)s [%(name)s/%(levelname)s] %(msg)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(settings.LOG_LEVEL)
+
+
+def random_session():
+    return random.choice(session_sets.sessions)
 
 
 class CheckResult:
@@ -58,6 +64,10 @@ class Check:
 
         self.check_xpath = [xpath] if isinstance(xpath, str) else xpath
 
+    @property
+    def domain(self):
+        return urllib.parse.urlparse(self.url).netloc
+
     async def check(self, proxy):
         possible_exceptions = (
             aiohttp.client_exceptions.ClientProxyConnectionError, 
@@ -69,11 +79,10 @@ class Check:
         )
 
         start_time = time.time()
-        self.logger.debug('Started check for {} on {}'.format(proxy, self.url))
         try:
             async with async_timeout.timeout(self.timeout):
                 async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False), conn_timeout=self.timeout, read_timeout=self.timeout) as session:
-                    async with session.get(self.url, proxy=str(proxy)) as response:
+                    async with session.get(self.url, proxy=str(proxy), headers=random_session()['headers']) as response:
                         content = await response.read()
                         result = response
         except possible_exceptions as e:
@@ -94,8 +103,10 @@ class Check:
                     is_passed = False
 
             if self.expected_status_code and int(result.status) not in self.expected_status_code:
+                self.logger.debug('{} not passed status code check on {}. {} got, but {} expected'.format(proxy, self.url, result.status, self.expected_status_code))
                 is_passed = False
         else:
+            self.logger.debug('{} got {} error on {}'.format(proxy, type(result), self.url))
             is_passed = False
 
         if isinstance(result, aiohttp.client_reqrep.ClientResponse):
@@ -106,7 +117,7 @@ class Check:
         check_result = CheckResult(is_passed, proxy, time=delta_time, status=status)
         proxy.add_check(check_result)
 
-        self.logger.info('Finished check (is passed: {}) for {} on {} by {:0.3f} s'.format(is_passed, proxy, self.url, delta_time))
+        self.logger.debug('Finished check (is passed: {}) for {} on {} by {:0.3f} s'.format(is_passed, proxy, self.url, delta_time))
         return check_result
 
 
