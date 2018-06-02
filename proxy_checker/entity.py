@@ -17,7 +17,6 @@ import settings
 import xpath_check
 
 
-
 logging.basicConfig(format='%(asctime)s [%(name)s/%(levelname)s] %(msg)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(settings.LOG_LEVEL)
