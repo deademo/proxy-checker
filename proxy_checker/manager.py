@@ -16,13 +16,19 @@ class ProcessItem:
     def processed(self):
         self._last_processed_at = time.time()
         if self._process_every:
-            self._next_process_at = self._last_processed_at + self._next_process_at
+            self._next_process_at = self._last_processed_at + self._process_every
 
     @property
+    def is_ready_to_process(self):
+        return self._next_process_at and self._next_process_at < time.time()
+
+    @property
+    def is_first_process(self):
+        return not self._last_processed_at and not self._next_process_at
+    
+    @property
     def is_need_to_process(self):
-        is_first_process = not self._last_processed_at and not self._next_process_at
-        is_ready_to_process = self._next_process_at and self._next_process_at < time.time()
-        return is_ready_to_process or is_first_process
+        return self.is_ready_to_process or self.is_first_process
 
 
 class Manager:

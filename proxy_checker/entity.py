@@ -81,7 +81,9 @@ class Check:
             aiohttp.client_exceptions.ClientHttpProxyError,
             aiohttp.client_exceptions.ServerDisconnectedError,
             aiohttp.client_exceptions.ClientResponseError,
-            aiosocksy.errors.SocksError
+            aiosocksy.errors.SocksError,
+            aiohttp.client_exceptions.InvalidURL,
+            aiohttp.client_exceptions.ClientPayloadError
         )
 
         start_time = time.time()
