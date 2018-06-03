@@ -85,6 +85,11 @@ def main():
     delta_time = time.time() - start_time
     manager.logger.info('{}/{} proxies alive. Checked {} proxies for {:0.2f} s. {:0.0f} proxies per second with {} concurent requests.'.format(len(alive), len(proxies), len(proxies), delta_time, len(proxies)/delta_time, concurent_requests))
 
+    session = entity.get_session()
+    for proxy in proxies:
+        session.add(proxy)
+    session.commit()
+
 
 if __name__ == '__main__':
     main()
