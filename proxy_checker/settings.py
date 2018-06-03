@@ -4,3 +4,4 @@ import logging
 LOG_LEVEL = logging.DEBUG
 DEFAULT_TIMEOUT = 2
 DEFAULT_CONCURENT_REQUESTS = 50
+POSSIBLE_PROTOCOLS = ['http', 'socks4', 'socks5']

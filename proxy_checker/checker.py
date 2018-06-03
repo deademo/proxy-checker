@@ -6,6 +6,7 @@ import entity
 import settings
 from worker import Worker
 from manager import Manager
+from utils import parse_proxy_string
 from xpath_check import XPathCheck, BanXPathCheck
 
 
@@ -14,6 +15,8 @@ def main():
     global proxies
 
     concurent_requests = 50
+    workers_count = 1
+    timeout = 5
 
     start_time = time.time()
     checks = []
@@ -42,13 +45,23 @@ def main():
     ))
 
     manager = Manager()
-    for x in range(2):
-        worker = Worker()
+    for x in range(workers_count):
+        worker = Worker(concurent_requests=concurent_requests, timeout=timeout)
         worker.checks += checks
         manager.workers.append(worker)
         
-    proxies = [entity.Proxy(*proxy.split(':')) for proxy in proxies]
-    for proxy in proxies:
+    proxies = [parse_proxy_string(proxy) for proxy in proxies]
+    for proxy in proxies[:]:
+        if not proxy.protocol:
+            for protocol in settings.POSSIBLE_PROTOCOLS:
+                if protocol == 'http':
+                    continue
+                buffer_proxy = proxy.make_proxy_string(protocol=protocol)
+                buffer_proxy = parse_proxy_string(buffer_proxy)
+
+                proxies.append(buffer_proxy)
+                manager.put(buffer_proxy)
+
         manager.put(proxy)
 
     loop = asyncio.get_event_loop()
@@ -63,7 +76,7 @@ def main():
 
     loop.close()
 
-    alive = sorted(filter(lambda x: x.is_alive and not x.is_banned_somewhere, proxies), key=lambda x: x.time)
+    alive = sorted(filter(lambda x: x.is_alive, proxies), key=lambda x: x.time)
     for proxy in alive:
         banned_on = proxy.banned_on
         banned_on = ', banned on: '+(', '.join([x for x in banned_on])) if banned_on else ''

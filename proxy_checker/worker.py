@@ -25,7 +25,6 @@ class Worker:
     def is_running(self):
         return self._is_running
 
-
     def put(self, item):
         self.queue.put_nowait(item)
 

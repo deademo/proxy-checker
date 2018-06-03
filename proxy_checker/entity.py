@@ -8,6 +8,8 @@ import urllib.parse
 
 import aiohttp
 import async_timeout
+import aiosocksy
+from aiosocksy.connector import ProxyConnector, ProxyClientRequest
 import lxml.html
 from tqdm import tqdm
 
@@ -78,13 +80,15 @@ class Check:
             aiohttp.client_exceptions.ClientOSError,
             aiohttp.client_exceptions.ClientHttpProxyError,
             aiohttp.client_exceptions.ServerDisconnectedError,
-            aiohttp.client_exceptions.ClientResponseError
+            aiohttp.client_exceptions.ClientResponseError,
+            aiosocksy.errors.SocksError
         )
 
         start_time = time.time()
+
         try:
             async with async_timeout.timeout(self.timeout):
-                async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False), conn_timeout=self.timeout, read_timeout=self.timeout) as session:
+                async with aiohttp.ClientSession(connector=ProxyConnector(), request_class=ProxyClientRequest, conn_timeout=self.timeout, read_timeout=self.timeout) as session:
                     async with session.get(self.url, proxy=str(proxy), headers=random_session()['headers']) as response:
                         content = await response.read()
                         result = response
@@ -110,11 +114,12 @@ class Check:
                 if not any_xpath_worked:
                     is_passed = False
 
+                    # self.logger.debug('No any xpath worked for proxy {} on url {} ({}):\n{}'.format(proxy, self.url, ", ".join(self.check_xpath), content.decode(errors='ignore')))
+
             if self.expected_status_code and int(result.status) not in self.expected_status_code:
                 self.logger.debug('{} not passed status code check on {}. {} got, but {} expected'.format(proxy, self.url, result.status, self.expected_status_code))
                 is_passed = False
         else:
-            self.logger.debug('{} got {} error on {}'.format(proxy, type(result), self.url))
             is_passed = False
 
         if isinstance(result, aiohttp.client_reqrep.ClientResponse):
@@ -125,7 +130,10 @@ class Check:
         check_result = CheckResult(proxy, is_passed, is_banned, check=self, time=delta_time, status=status)
         proxy.add_check(check_result)
 
-        self.logger.debug('Finished check (is passed: {}) for {} on {} by {:0.3f} s'.format(is_passed, proxy, self.url, delta_time))
+        error = ''
+        if isinstance(result, BaseException):
+            error = ', error: {}'.format(result.__class__.__name__)
+        self.logger.debug('Finished check (is passed: {}) for {} on {} by {:0.3f} s{}'.format(is_passed, proxy, self.url, delta_time, error))
         return check_result
 
 
@@ -140,7 +148,7 @@ class MultiCheck:
 
 
 class Proxy:
-    def __init__(self, host, port, protocol='http', tags={}, recheck_every=None):
+    def __init__(self, host, port, protocol=None, tags={}, recheck_every=None):
         self.host = host
         self.port = port
         self.protocol = protocol
@@ -149,7 +157,14 @@ class Proxy:
         self.checks = []
 
     def __str__(self):
-        return '{}://{}:{}'.format(self.protocol, self.host, self.port)
+        return self.make_proxy_string()
+
+    def __repr__(self):
+        return str(self)
+
+    def make_proxy_string(self, protocol=None):
+        protocol = protocol or self.protocol or 'http'
+        return '{}://{}:{}'.format(protocol, self.host, self.port)
 
     def add_check(self, check):
         self.checks.append(check)
