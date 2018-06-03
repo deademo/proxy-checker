@@ -17,6 +17,7 @@ from sqlalchemy import (Column, Boolean, Integer, String, ForeignKey,
                         UniqueConstraint)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.sql.expression import ClauseElement
 from tqdm import tqdm
 
 from proxies import proxies
@@ -205,6 +206,8 @@ class CheckDefinition(Base):
         check_result.check = self
         check_result.time = delta_time
         check_result.status = status
+        if isinstance(result, BaseException):
+            check_result.error = result.__class__.__name__
         proxy.add_check(check_result)
 
         error = ''
@@ -237,7 +240,7 @@ def Check(url, status=None, xpath=None, timeout=5):
             buffer_xpath['type'] = 'alive'
         check['check_xpath'].append(buffer_xpath)
 
-    return CheckDefinition(definition=json.dumps(check))
+    return get_or_create(CheckDefinition, definition=json.dumps(check))
 
 
 class MultiCheck:
@@ -258,6 +261,7 @@ class CheckResult(Base):
     is_banned = Column(Boolean)
     status = Column(Integer)
     time = Column(Integer)
+    error = Column(String)
     proxy_id = Column(Integer, ForeignKey('proxy.id'))
     proxy = relationship('Proxy', back_populates='checks')
     check_id = Column(Integer, ForeignKey('check_definition.id'))
@@ -284,13 +288,31 @@ def get_engine():
         db_dir_path = os.path.abspath(os.path.dirname(__file__))
         db_file_name = 'test4.db'
         db_path = os.path.join(db_dir_path, db_file_name)
-        get_engine.engine = create_engine('sqlite:///{}'.format(db_path), echo=True)
+        get_engine.engine = create_engine('sqlite:///{}'.format(db_path), echo=settings.LOG_LEVEL == logging.DEBUG)
     return get_engine.engine
 get_engine.engine = None
 
 
 def get_session():
-    return sessionmaker(bind=get_engine())()
+    if not get_session.session:
+        get_session.session = sessionmaker(bind=get_engine())()
+    return get_session.session
+get_session.session = None
+
+
+def get_or_create(model, session=None, defaults=None, **kwargs):
+    if not session:
+        session = get_session()
+    instance = session.query(model).filter_by(**kwargs).first()
+    if instance:
+        instance.__init__()
+        return instance
+    else:
+        params = dict((k, v) for k, v in kwargs.items() if not isinstance(v, ClauseElement))
+        params.update(defaults or {})
+        instance = model(**params)
+        session.add(instance)
+        return instance
 
 
 if __name__ == '__main__':

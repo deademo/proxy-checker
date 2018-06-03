@@ -1,4 +1,4 @@
-from entity import Proxy
+from entity import Proxy, get_or_create
 
 import urllib.parse
 
@@ -14,7 +14,8 @@ def parse_proxy_string(proxy):
     else:
         port = None
 
-    return Proxy(
+    return get_or_create(
+        Proxy,
         host=host,
         port=port,
         protocol=parsed_proxy.scheme
