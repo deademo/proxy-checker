@@ -37,6 +37,25 @@ def random_session():
     return random.choice(session_sets.sessions)
 
 
+def parse_proxy_string(proxy):
+    parsed_proxy = urllib.parse.urlparse(proxy)
+
+    netloc = parsed_proxy.netloc or parsed_proxy.path
+    netloc_splitted = netloc.split(':')
+    host = netloc_splitted[0]
+    if len(netloc_splitted) > 1:
+        port = netloc_splitted[1]
+    else:
+        port = None
+
+    return get_or_create(
+        Proxy,
+        host=host,
+        port=port,
+        protocol=parsed_proxy.scheme
+    )
+
+
 class Proxy(Base):
     __tablename__ = 'proxy'
 
@@ -207,20 +226,20 @@ class CheckDefinition(Base):
         check_result.time = delta_time
         check_result.status = status
         if isinstance(result, BaseException):
-            check_result.error = result.__class__.__name__
+            check_result.error = str(result)
         proxy.add_check(check_result)
 
         error = ''
         if isinstance(result, BaseException):
-            error = ', error: {}'.format(result.__class__.__name__)
+            error = ', error: {}'.format(str(result))
         self.logger.debug('Finished check (is passed: {}) for {} on {} by {:0.3f} s{}'.format(is_passed, proxy, self.url, delta_time, error))
         return check_result
 
 
-def Check(url, status=None, xpath=None, timeout=5):
+def make_check_definition(url, status=None, xpath=None, timeout=None):
     check = {}
     check['url'] = url
-    check['timeout'] = timeout
+    check['timeout'] = timeout or settings.DEFAULT_TIMEOUT
 
     if status is None:
         check['status'] = None
@@ -239,15 +258,16 @@ def Check(url, status=None, xpath=None, timeout=5):
         else:
             buffer_xpath['type'] = 'alive'
         check['check_xpath'].append(buffer_xpath)
+    return json.dumps(check)
 
-    return get_or_create(CheckDefinition, definition=json.dumps(check))
+
+def Check(*args, **kwargs):
+    return get_or_create(CheckDefinition, definition=make_check_definition(*args, **kwargs))
 
 
 class MultiCheck:
-    def __init__(self, *args, timeout=5):
+    def __init__(self, *args):
         self.checks = args
-        for check in self.checks:
-            check.timeout = timeout
 
     async def check(self, proxy):
         return await asyncio.gather(*[check.check(proxy) for check in self.checks])
@@ -278,8 +298,12 @@ class CheckResult(Base):
 Proxy.checks = relationship('CheckResult', order_by=CheckResult.id, back_populates='proxy')
 
 
-def main():
+def create_models():
     Base.metadata.create_all(get_engine())
+
+
+def main():
+    create_models()    
 
 
 def get_engine():
@@ -288,14 +312,14 @@ def get_engine():
         db_dir_path = os.path.abspath(os.path.dirname(__file__))
         db_file_name = 'test4.db'
         db_path = os.path.join(db_dir_path, db_file_name)
-        get_engine.engine = create_engine('sqlite:///{}'.format(db_path), echo=settings.LOG_LEVEL == logging.DEBUG)
+        get_engine.engine = create_engine('sqlite:///{}'.format(db_path), echo=settings.SQL_LOG_ENABLED)
     return get_engine.engine
 get_engine.engine = None
 
 
 def get_session():
     if not get_session.session:
-        get_session.session = sessionmaker(bind=get_engine())()
+        get_session.session = sessionmaker(bind=get_engine(), autoflush=False)()
     return get_session.session
 get_session.session = None
 

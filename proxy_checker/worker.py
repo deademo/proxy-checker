@@ -6,16 +6,17 @@ import settings
 
 
 class Worker:
-    def __init__(self, concurent_requests=None, timeout=None):
+    def __init__(self, concurent_requests=None, progress_bar=None):
         self.queue = asyncio.Queue()
         self.concurent_requests = concurent_requests or settings.DEFAULT_CONCURENT_REQUESTS
-        self.timeout = timeout or settings.DEFAULT_TIMEOUT
         self.logger = logging.getLogger(__class__.__name__)
         self.logger.setLevel(settings.LOG_LEVEL)
         self.checks = []
         self._is_running = False
         self._stop_after_queue_processed = False
         self._internal_queue = []
+        self._progress_bar = progress_bar
+        self._processed_count = 0
 
     @property
     def queue_size(self):
@@ -32,13 +33,22 @@ class Worker:
     def is_have_item_to_process(self):
         return self.queue.qsize() != 0 or len(self._internal_queue) != 0
 
+    def on_task_finished(self):
+        self._processed_count += 1
+        self.update_progress_bar()
+
+    def update_progress_bar(self):
+        if self._progress_bar is None:
+            return False
+        self._progress_bar.total = self.queue_size + self._processed_count
+        self._progress_bar.update(1)
+
     async def start(self):
         self.logger.info('Worker main loop started')
         self._is_running = True
 
         c = entity.MultiCheck(
-            *self.checks,
-            timeout=self.timeout
+            *self.checks
         )
 
         while self._is_running:
@@ -50,6 +60,7 @@ class Worker:
             while is_continue:
                 to_del = [i for i, f in enumerate(self._internal_queue) if f.done()]
                 for i in sorted(to_del, reverse=True):
+                    self.on_task_finished()
                     del self._internal_queue[i]
 
                 await asyncio.sleep(0.1)
@@ -74,3 +85,5 @@ class Worker:
     async def wait_stop(self):
         while self.is_running:
             await asyncio.sleep(0.1)
+        if self._progress_bar:
+            self._progress_bar.close()

@@ -6,17 +6,22 @@ import entity
 import settings
 from worker import Worker
 from manager import Manager
-from utils import parse_proxy_string
+from entity import parse_proxy_string
 from xpath_check import XPathCheck, BanXPathCheck
+
+import tqdm
 
 
 def main():
     from proxies import proxies
     global proxies
 
+    entity.create_models()
+    session = entity.get_session()
+
     concurent_requests = 50
-    workers_count = 1
-    timeout = 5
+    workers_count = 5
+    timeout = 3
 
     start_time = time.time()
     checks = []
@@ -45,8 +50,15 @@ def main():
     ))
 
     manager = Manager()
-    for x in range(workers_count):
-        worker = Worker(concurent_requests=concurent_requests, timeout=timeout)
+    for i in range(workers_count):
+        if settings.PROGRESS_BAR_ENABLED:
+            progress_bar = tqdm.tqdm(position=i)
+        else:
+            progress_bar = None
+        worker = Worker(
+            concurent_requests=concurent_requests,
+            progress_bar=progress_bar
+        )
         worker.checks += checks
         manager.workers.append(worker)
         
@@ -63,6 +75,7 @@ def main():
                 manager.put(buffer_proxy)
 
         manager.put(proxy)
+
 
     loop = asyncio.get_event_loop()
 
