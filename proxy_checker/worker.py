@@ -11,7 +11,6 @@ class Worker:
         self.concurent_requests = concurent_requests or settings.DEFAULT_CONCURENT_REQUESTS
         self.logger = logging.getLogger(__class__.__name__)
         self.logger.setLevel(settings.LOG_LEVEL)
-        self.checks = []
         self._is_running = False
         self._stop_after_queue_processed = False
         self._internal_queue = []
@@ -47,14 +46,12 @@ class Worker:
         self.logger.info('Worker main loop started')
         self._is_running = True
 
-        c = entity.MultiCheck(
-            *self.checks
-        )
 
         while self._is_running:
             if self.queue.qsize() != 0:
                 item = await self.queue.get()
-                self._internal_queue.append(asyncio.ensure_future(c.check(item)))
+                check = entity.MultiCheck(*item.check_definitions).check
+                self._internal_queue.append(asyncio.ensure_future(check(item)))
 
             is_continue = True
             while is_continue:

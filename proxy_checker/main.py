@@ -59,7 +59,6 @@ def main():
             concurent_requests=concurent_requests,
             progress_bar=progress_bar
         )
-        worker.checks += checks
         manager.workers.append(worker)
         
     proxies = [parse_proxy_string(proxy) for proxy in proxies]
@@ -72,10 +71,14 @@ def main():
                 buffer_proxy = parse_proxy_string(buffer_proxy)
 
                 proxies.append(buffer_proxy)
-                manager.put(buffer_proxy)
 
+    for proxy in proxies:
+        for check in checks:
+            proxy.add_check_definition(check)
+    session.commit()
+
+    for proxy in proxies:
         manager.put(proxy)
-
 
     loop = asyncio.get_event_loop()
 
@@ -89,6 +92,10 @@ def main():
 
     loop.close()
 
+    for proxy in proxies:
+        session.add(proxy)
+    session.commit()
+
     alive = sorted(filter(lambda x: x.is_alive, proxies), key=lambda x: x.time)
     for proxy in alive:
         banned_on = proxy.banned_on
@@ -98,10 +105,6 @@ def main():
     delta_time = time.time() - start_time
     manager.logger.info('{}/{} proxies alive. Checked {} proxies for {:0.2f} s. {:0.0f} proxies per second with {} concurent requests.'.format(len(alive), len(proxies), len(proxies), delta_time, len(proxies)/delta_time, concurent_requests))
 
-    session = entity.get_session()
-    for proxy in proxies:
-        session.add(proxy)
-    session.commit()
 
 
 if __name__ == '__main__':

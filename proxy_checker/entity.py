@@ -58,6 +58,7 @@ def parse_proxy_string(proxy):
 
 class Proxy(Base):
     __tablename__ = 'proxy'
+    __table_args__ = (UniqueConstraint('host', 'port', 'protocol', name='proxy_uix'), )
 
     id = Column(Integer, primary_key=True)
     host = Column(String)
@@ -65,7 +66,6 @@ class Proxy(Base):
     protocol = Column(String)
     recheck_every = Column(Integer)
 
-    __table_args__ = (UniqueConstraint('host', 'port', 'protocol', name='proxy_uix'), )
 
     def __str__(self):
         return self.make_proxy_string()
@@ -81,6 +81,26 @@ class Proxy(Base):
         self.checks.append(check)
 
     @property
+    def last_checks(self):
+        return (get_session().query(CheckResult)
+                    .join(Proxy)
+                    .join(ProxyCheckDefinition)
+                    .filter(CheckResult.proxy == self and ProxyCheckDefinition.proxy == self)
+                    .order_by(CheckResult.id)
+                    .group_by(CheckResult.check_id)
+                    .all()
+        )
+
+    @property
+    def check_definitions(self):
+        return [x.check_definition for x in self._check_definitions]
+
+    def add_check_definition(self, check_definition):
+        definition_mapping = get_or_create(ProxyCheckDefinition, check_definition=check_definition, proxy=self)
+        if not definition_mapping.id:
+            self._check_definitions.append(definition_mapping)
+
+    @property
     def time(self):
         if not self.checks:
             return -1
@@ -88,7 +108,7 @@ class Proxy(Base):
 
     @property
     def is_alive(self):
-        return all(self.checks)
+        return all(self.last_checks)
 
     @property
     def is_banned_somewhere(self):
@@ -99,13 +119,24 @@ class Proxy(Base):
         return [x.check.domain for x in self.checks if x.is_banned]
 
 
+class ProxyCheckDefinition(Base):
+    __tablename__ = 'proxy_check_definition'
+    __table_args__ = (UniqueConstraint('proxy_id', 'check_definition_id', name='proxy_check_definition_uix'), )
+
+    id = Column(Integer, primary_key=True)
+    proxy_id = Column(Integer, ForeignKey('proxy.id'))
+    proxy = relationship('Proxy', back_populates='_check_definitions')
+    check_definition_id = Column(Integer, ForeignKey('check_definition.id'))
+    check_definition = relationship('CheckDefinition')
+
+
 class CheckDefinition(Base):
     __tablename__ = 'check_definition'
+    __table_args__ = (UniqueConstraint('definition', name='check_definition_uix'), )
 
     id = Column(Integer, primary_key=True)
     definition = Column(String)
 
-    __table_args__ = (UniqueConstraint('definition', name='check_definition_uix'), )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -179,7 +210,7 @@ class CheckDefinition(Base):
 
         try:
             async with async_timeout.timeout(self.timeout):
-                async with aiohttp.ClientSession(connector=ProxyConnector(), request_class=ProxyClientRequest, conn_timeout=self.timeout, read_timeout=self.timeout) as session:
+                async with aiohttp.ClientSession(connector=ProxyConnector(verify_ssl=False), request_class=ProxyClientRequest, conn_timeout=self.timeout, read_timeout=self.timeout) as session:
                     async with session.get(self.url, proxy=str(proxy), headers=random_session()['headers']) as response:
                         content = await response.read()
                         result = response
@@ -296,6 +327,7 @@ class CheckResult(Base):
 
 
 Proxy.checks = relationship('CheckResult', order_by=CheckResult.id, back_populates='proxy')
+Proxy._check_definitions = relationship('ProxyCheckDefinition', order_by=ProxyCheckDefinition.id, back_populates='proxy')
 
 
 def create_models():
