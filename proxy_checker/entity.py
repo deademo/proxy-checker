@@ -112,11 +112,11 @@ class Proxy(Base):
 
     @property
     def is_banned_somewhere(self):
-        return any([x.is_banned for x in self.checks])
+        return any([x.is_banned for x in self.last_checks])
 
     @property
     def banned_on(self):
-        return [x.check.domain for x in self.checks if x.is_banned]
+        return [x.check.domain for x in self.last_checks if x.is_banned]
 
 
 class ProxyCheckDefinition(Base):
