@@ -1,4 +1,5 @@
 import asyncio
+import argparse
 import logging
 import time
 
@@ -12,9 +13,17 @@ from xpath_check import XPathCheck, BanXPathCheck
 import tqdm
 
 
+arg_parser = argparse.ArgumentParser()
+arg_parser.add_argument('--debug', action='store_true', required=False)
+
+
 def main():
     from proxies import proxies
     global proxies
+
+    args = arg_parser.parse_args()
+    if args.debug:
+        settings.enable_debug_mode()
 
     entity.create_models()
     session = entity.get_session()

@@ -1,15 +1,17 @@
 import logging
 
 DEBUG_MODE = False
+SQL_LOG_ENABLED = False
 
 LOG_LEVEL = logging.DEBUG
-SQL_LOG_ENABLED = True
 PROGRESS_BAR_ENABLED = False
 DEFAULT_TIMEOUT = 2
 DEFAULT_CONCURENT_REQUESTS = 50
 POSSIBLE_PROTOCOLS = ['http', 'socks4', 'socks5']
 
-if not DEBUG_MODE:
+def enable_debug_mode():
     LOG_LEVEL = logging.INFO
-    SQL_LOG_ENABLED = False
     PROGRESS_BAR_ENABLED = True
+
+if DEBUG_MODE:
+    enable_debug_mode()
