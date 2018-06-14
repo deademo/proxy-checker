@@ -378,5 +378,13 @@ def get_or_create(model, session=None, defaults=None, **kwargs):
         return instance
 
 
+def serializer(obj):
+    """JSON encoder function for SQLAlchemy special classes."""
+    if isinstance(obj, datetime.date):
+        return obj.isoformat()
+    elif isinstance(obj, decimal.Decimal):
+        return float(obj)
+
+
 if __name__ == '__main__':
     main()
