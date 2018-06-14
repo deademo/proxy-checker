@@ -15,7 +15,7 @@ from aiosocksy.connector import ProxyConnector, ProxyClientRequest
 import lxml.html
 from sqlalchemy import create_engine
 from sqlalchemy import (Column, Boolean, Integer, String, ForeignKey, 
-                        UniqueConstraint)
+                        UniqueConstraint, DateTime)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.sql.expression import ClauseElement
@@ -66,6 +66,7 @@ class Proxy(Base):
     port = Column(String)
     protocol = Column(String)
     recheck_every = Column(Integer)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow())
 
 
     def __str__(self):
@@ -253,6 +254,7 @@ class CheckDefinition(Base):
         check_result.is_banned = is_banned
         check_result.check = self
         check_result.time = delta_time
+        check_result.done_at = datetime.datetime.utcnow()
         check_result.status = status
         if isinstance(result, BaseException):
             check_result.error = str(result)
@@ -321,6 +323,7 @@ class CheckResult(Base):
     proxy = relationship('Proxy', back_populates='checks')
     check_id = Column(Integer, ForeignKey('check_definition.id'))
     check = relationship('CheckDefinition')
+    done_at = Column(DateTime)
 
 
     def __bool__(self):
