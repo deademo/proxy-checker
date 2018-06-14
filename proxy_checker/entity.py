@@ -1,6 +1,7 @@
 import asyncio
 import collections
 import concurrent
+import datetime
 import json
 import logging
 import random
@@ -116,7 +117,7 @@ class Proxy(Base):
 
     @property
     def banned_on(self):
-        return [x.check.domain for x in self.last_checks if x.is_banned]
+        return [x.check.netloc for x in self.last_checks if x.is_banned]
 
 
 class ProxyCheckDefinition(Base):
@@ -136,6 +137,7 @@ class CheckDefinition(Base):
 
     id = Column(Integer, primary_key=True)
     definition = Column(String)
+    netloc = Column(String)
 
 
     def __init__(self, *args, **kwargs):
@@ -173,10 +175,6 @@ class CheckDefinition(Base):
     @property
     def status(self):
         return self.decoded_definition.get('status')
-
-    @property
-    def domain(self):
-        return urllib.parse.urlparse(self.url).netloc
 
     @property
     def check_xpath(self):
@@ -289,11 +287,17 @@ def make_check_definition(url, status=None, xpath=None, timeout=None):
         else:
             buffer_xpath['type'] = 'alive'
         check['check_xpath'].append(buffer_xpath)
-    return json.dumps(check)
+    return check
 
 
 def Check(*args, **kwargs):
-    return get_or_create(CheckDefinition, definition=make_check_definition(*args, **kwargs))
+    check_definition = make_check_definition(*args, **kwargs)
+    netloc = urllib.parse.urlparse(check_definition['url']).netloc
+    return get_or_create(
+        CheckDefinition, 
+        definition=json.dumps(check_definition),
+        netloc=netloc,
+    )
 
 
 class MultiCheck:
