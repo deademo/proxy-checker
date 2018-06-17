@@ -9,6 +9,8 @@ DEFAULT_TIMEOUT = 2
 DEFAULT_CONCURENT_REQUESTS = 50
 POSSIBLE_PROTOCOLS = ['http', 'socks4', 'socks5']
 
+TRUE_VALUES = ('1', 'true', 'True', 'on')
+
 SERVER_HOST = '0.0.0.0'
 SERVER_PORT = 3300
 

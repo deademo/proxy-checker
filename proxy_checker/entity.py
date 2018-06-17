@@ -37,8 +37,7 @@ logger.setLevel(settings.LOG_LEVEL)
 def random_session():
     return random.choice(session_sets.sessions)
 
-
-def parse_proxy_string(proxy):
+def get_proxy_parts(proxy):
     parsed_proxy = urllib.parse.urlparse(proxy)
 
     netloc = parsed_proxy.netloc or parsed_proxy.path
@@ -49,11 +48,16 @@ def parse_proxy_string(proxy):
     else:
         port = None
 
+    return parsed_proxy.scheme, host, port
+
+def parse_proxy_string(proxy):
+    protocol, host, port = get_proxy_parts(proxy)
+
     return get_or_create(
         Proxy,
         host=host,
         port=port,
-        protocol=parsed_proxy.scheme
+        protocol=protocol
     )
 
 
