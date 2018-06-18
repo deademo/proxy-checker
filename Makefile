@@ -11,3 +11,6 @@ run:
 
 dev_win:
 	docker run -v C:/py/proxy-checker/proxy_checker:/proxy_checker/ -it proxy_checker /bin/sh
+
+test:
+	cd proxy_checker && PYTHONPATH=. python -m unittest -v
