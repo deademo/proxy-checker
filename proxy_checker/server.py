@@ -18,7 +18,7 @@ class APIException(BaseException):
 
 
 class Server(web.Application):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, db=None, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.router.add_get('/list', self.list)
@@ -28,7 +28,10 @@ class Server(web.Application):
         self.router.add_get('/remove_check', self.remove_check)
         self.router.add_get('/add_proxy_check', self.add_proxy_check)
         self.router.add_get('/remove_proxy_check', self.remove_proxy_check)
-        self.db = entity.get_session()
+        if not db:
+            self.db = entity.get_session()
+        else:
+            self.db = db
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(settings.LOG_LEVEL)
@@ -170,7 +173,7 @@ class Server(web.Application):
 
         return query
 
-    def add(self, request):
+    async def add(self, request):
         try:
             query = self.add_validate(request)
         except APIException as e:
@@ -184,7 +187,7 @@ class Server(web.Application):
 
         return Response(text=json.dumps({'result': 'ok', 'error': False}))
 
-    def list(self, request):
+    async def list(self, request):
         try:
             filters = self.list_validate(request)
         except APIException as e:
@@ -207,7 +210,7 @@ class Server(web.Application):
 
         return Response(text=json.dumps({'result': result, 'error': False}, default=entity.serializer))
 
-    def remove(self, request):
+    async def remove(self, request):
         try:
             query = self.remove_validate(request)
         except APIException as e:
@@ -220,7 +223,7 @@ class Server(web.Application):
 
         return Response(text=json.dumps(result, default=entity.serializer))
 
-    def add_check(self, request):
+    async def add_check(self, request):
         try:
             query = self.add_check_validate(request)
         except APIException as e:
@@ -232,7 +235,7 @@ class Server(web.Application):
 
         return Response(text=json.dumps(result, default=entity.serializer))
 
-    def remove_check(self, request):
+    async def remove_check(self, request):
         try:
             query = self.remove_check_validate(request)
         except APIException as e:
@@ -242,7 +245,7 @@ class Server(web.Application):
 
         return Response(text=json.dumps(result, default=entity.serializer))
 
-    def add_proxy_check(self, request):
+    async def add_proxy_check(self, request):
         try:
             query = self.add_proxy_check_validate(request)
         except APIException as e:
@@ -252,7 +255,7 @@ class Server(web.Application):
 
         return Response(text=json.dumps(result, default=entity.serializer))
 
-    def remove_proxy_check(self, request):
+    async def remove_proxy_check(self, request):
         try:
             query = self.remove_proxy_check_validate(request)
         except APIException as e:

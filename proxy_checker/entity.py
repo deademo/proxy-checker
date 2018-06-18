@@ -341,28 +341,30 @@ Proxy.checks = relationship('CheckResult', order_by=CheckResult.id, back_populat
 Proxy._check_definitions = relationship('ProxyCheckDefinition', order_by=ProxyCheckDefinition.id, back_populates='proxy')
 
 
-def create_models():
-    Base.metadata.create_all(get_engine())
+def create_models(engine=None):
+    if not engine:
+        engine = get_engine()
+    Base.metadata.create_all(engine)
 
 
 def main():
     create_models()    
 
 
-def get_engine():
+def get_engine(db_file_name=None):
     if not get_engine.engine:
         import os
         db_dir_path = os.path.abspath(os.path.dirname(__file__))
-        db_file_name = 'test4.db'
+        db_file_name = db_file_name or 'default.db'
         db_path = os.path.join(db_dir_path, db_file_name)
         get_engine.engine = create_engine('sqlite:///{}'.format(db_path), echo=settings.SQL_LOG_ENABLED)
     return get_engine.engine
 get_engine.engine = None
 
 
-def get_session():
+def get_session(db_file_name=None):
     if not get_session.session:
-        get_session.session = sessionmaker(bind=get_engine(), autoflush=False)()
+        get_session.session = sessionmaker(bind=get_engine(db_file_name=db_file_name), autoflush=False)()
     return get_session.session
 get_session.session = None
 
