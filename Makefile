@@ -15,13 +15,13 @@ run:
 	docker run -it proxy_checker /bin/sh
 
 dev_win:
-	docker run -v C:/py/proxy-checker/proxy_checker:/proxy_checker/ -it proxy_checker /bin/sh
+	docker run -v C:/py/proxy-checker:/proxy_checker/ -v /proxy_checker/venv -it proxy_checker /bin/sh
 
 test:
 	cd proxy_checker && PYTHONPATH=. ../venv/bin/python -m unittest -v
 
 cov:
-	cd proxy_checker && PYTHONPATH=. ../venv/bin/python -m unittest -v
+	cd proxy_checker && PYTHONPATH=. ../venv/bin/python -m nose tests/test_*.py --with-coverage --cover-package=.
 
 test_win:
 	cd proxy_checker && PYTHONPATH=. ../venv/Scripts/python.exe -m unittest -v

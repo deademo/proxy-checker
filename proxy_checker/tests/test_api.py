@@ -23,7 +23,7 @@ class TestAPI(asynctest.TestCase):
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
 
-        self._host = 'localhost'
+        self._host = '127.0.0.1'
         self._port = 7766
         await web.TCPSite(self.runner, self._host, self._port).start()
 
