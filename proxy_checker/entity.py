@@ -271,7 +271,7 @@ class CheckDefinition(Base):
         return check_result
 
 
-def make_check_definition(url, status=None, xpath=None, timeout=None):
+def make_check_definition(url, status=200, xpath=[], timeout=None):
     check = {}
     check['url'] = url
     check['timeout'] = timeout or settings.DEFAULT_TIMEOUT
@@ -351,8 +351,8 @@ def main():
     create_models()    
 
 
-def get_engine(db_file_name=None):
-    if not get_engine.engine:
+def get_engine(db_file_name=None, force=False):
+    if not get_engine.engine or force:
         import os
         db_dir_path = os.path.abspath(os.path.dirname(__file__))
         db_file_name = db_file_name or 'default.db'
@@ -362,8 +362,8 @@ def get_engine(db_file_name=None):
 get_engine.engine = None
 
 
-def get_session(db_file_name=None):
-    if not get_session.session:
+def get_session(db_file_name=None, force=False):
+    if not get_session.session or force:
         get_session.session = sessionmaker(bind=get_engine(db_file_name=db_file_name), autoflush=False)()
     return get_session.session
 get_session.session = None

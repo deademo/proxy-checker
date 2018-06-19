@@ -36,6 +36,9 @@ class Server(web.Application):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(settings.LOG_LEVEL)
 
+    async def close(self):
+        self.db.close()
+
     @property
     def _ban_map(self):
         banned_at = {}
@@ -60,7 +63,7 @@ class Server(web.Application):
         except:
             protocol = host = port = None
         if not host or not port:
-            raise APIException('Value of attribute \'proxy\' must be containt host and port of proxy, but \'{}\' got'.format(query['proxy']))
+            raise APIException('Value of attribute \'proxy\' should be containt host and port of proxy, but \'{}\' got'.format(query['proxy']))
 
         # Recheck every checks
         query['recheck_every'] = request.query.get('recheck_every')
@@ -68,74 +71,108 @@ class Server(web.Application):
             try:
                 query['recheck_every'] = int(query['recheck_every'])
             except ValueError:
-                raise APIException('Value of attribute \'recheck_every\' must be int or number as string, but \'{}\' got'.format(query['recheck_every']))
+                raise APIException('Value of attribute \'recheck_every\' should be int or number as string, but \'{}\' got'.format(query['recheck_every']))
 
         return query
 
     def list_validate(self, request):
         query = {}
 
+        for key in request.query.keys():
+            if key not in ('is_alive', ):
+                raise APIException('Attribute \'{}\' is not allowed in \'list\' method'.format(key))
+
         query['is_alive'] = self._get_bool(request.query.get('is_alive'))
-        query['with_banned_at'] = self._get_bool(request.query.get('with_banned_at'))
 
         return query
 
     def remove_validate(self, request):
         query = {}
         
+        for key in request.query.keys():
+            if key not in ('id', ):
+                raise APIException('Attribute \'{}\' is not allowed in \'remove\' method'.format(key))
+
         query['id'] = request.query.get('id')
         try:
             query['id'] = int(query['id'])
         except ValueError:
-            raise APIException('Value of attribute \'id\' must be int or number as string, but \'{}\' got'.format(query['id']))
+            raise APIException('Value of attribute \'id\' should be int or number as string, but \'{}\' got'.format(query['id']))
 
         return query
 
     def add_check_validate(self, request):
         query = {}
 
-        try:
-            definition = json.loads(request.query.get('definition'))
-        except:
-            raise APIException('Value of attribute \'definition\' must be JSON string with check definition')
+        for key in request.query.keys():
+            if key not in ('definition', ):
+                raise APIException('Attribute \'{}\' is not allowed in \'add_check_validate\' method'.format(key))
+
+        definition = request.query.get('definition')
+
+        error = False
+        if isinstance(definition, str):
+            try:
+                definition = json.loads(definition)
+            except:
+                error = True
+        if not isinstance(definition, dict):
+            error = True
+        if error:
+            raise APIException('Value of attribute \'definition\' should be dict or JSON string with dict of check definition. Got: \'{}\''.format(definition))
+
+        for key in query.keys():
+            if key not in ('url', 'status', 'xpath', 'timeout'):
+                raise APIException('Attribute \'{}\' is not allowed in check definition'.format(key))
 
         query['url'] = definition.get('url')
         if query['url'] is None:
             raise APIException('Value of attribute \'url\' is not set'.format(query['url']))
         if not isinstance(query['url'], str):
-            raise APIException('Value of attribute \'url\' must be string, but \'{}\' got'.format(query['url']))
+            raise APIException('Value of attribute \'url\' should be string, but \'{}\' got'.format(query['url']))
 
         query['status'] = definition.get('status')
         if query['status'] is not None:
             if not isinstance(query['status'], list):
-                raise APIException('Value of attribute \'status\' must be list of int, but \'{}\' got'.format(query['status']))
+                raise APIException('Value of attribute \'status\' should be list of int, but \'{}\' got'.format(query['status']))
+        else:
+            del query['status']
 
         query['xpath'] = definition.get('xpath')
         if query['xpath'] is not None:
             if not isinstance(query['xpath'], list):
-                raise APIException('Value of attribute \'xpath\' must be list, but \'{}\' got'.format(query['xpath']))
+                raise APIException('Value of attribute \'xpath\' should be list, but \'{}\' got'.format(query['xpath']))
             for xpath_item in query['xpath']:
                 if not isinstance(xpath_item, str):
-                    raise APIException('Value of attribute list \'xpath\' must be str, but \'{}\' got'.format(xpath_item))
+                    raise APIException('Value of attribute list \'xpath\' should be str, but \'{}\' got'.format(xpath_item))
                 xpath_item['type'] = 'ban' if xpath_item.get('type') == 'ban' else 'alive'
+        else:
+            del query['xpath']
 
         query['timeout'] = definition.get('timeout')
         if query['timeout'] is not None:
             try:
                 query['timeout'] = int(query['timeout'])
             except ValueError:
-                raise APIException('Value of attribute \'timeout\' must be int, but \'{}\' got'.format(query['timeout']))
+                raise APIException('Value of attribute \'timeout\' should be int, but \'{}\' got'.format(query['timeout']))
+        else:
+            del query['timeout']
 
-        return query
+        return {'definition': query}
 
     def remove_check_validate(self, request):
         query = {}
+
+        for key in request.query.keys():
+            if key not in ('id', ):
+                raise APIException('Attribute \'{}\' is not allowed in \'remove_check_validate\' method'.format(key))
+
 
         query['id'] = request.query.get('id')
         try:
             query['id'] = int(query['id'])
         except ValueError:
-            raise APIException('Value of attribute \'id\' must be intstring, but \'{}\' got'.format(query['id']))
+            raise APIException('Value of attribute \'id\' should be intstring, but \'{}\' got'.format(query['id']))
 
         return query
 
@@ -146,13 +183,13 @@ class Server(web.Application):
         try:
             query['proxy_id'] = int(query['proxy_id'])
         except ValueError:
-            raise APIException('Value of attribute \'proxy_id\' must be intstring, but \'{}\' got'.format(query['proxy_id']))
+            raise APIException('Value of attribute \'proxy_id\' should be intstring, but \'{}\' got'.format(query['proxy_id']))
 
         query['check_id'] = request.query.get('check_id')
         try:
             query['check_id'] = int(query['check_id'])
         except ValueError:
-            raise APIException('Value of attribute \'check_id\' must be intstring, but \'{}\' got'.format(query['check_id']))
+            raise APIException('Value of attribute \'check_id\' should be intstring, but \'{}\' got'.format(query['check_id']))
 
         return query
 
@@ -163,13 +200,13 @@ class Server(web.Application):
         try:
             query['proxy_id'] = int(query['proxy_id'])
         except ValueError:
-            raise APIException('Value of attribute \'proxy_id\' must be intstring, but \'{}\' got'.format(query['proxy_id']))
+            raise APIException('Value of attribute \'proxy_id\' should be intstring, but \'{}\' got'.format(query['proxy_id']))
 
         query['check_id'] = request.query.get('check_id')
         try:
             query['check_id'] = int(query['check_id'])
         except ValueError:
-            raise APIException('Value of attribute \'check_id\' must be intstring, but \'{}\' got'.format(query['check_id']))
+            raise APIException('Value of attribute \'check_id\' should be intstring, but \'{}\' got'.format(query['check_id']))
 
         return query
 
@@ -177,7 +214,7 @@ class Server(web.Application):
         try:
             query = self.add_validate(request)
         except APIException as e:
-            return Response(text=json.dumps({'result': 'error', 'error': str(e)}))
+            return Response(text=json.dumps({'result': str(e), 'error': True}))
 
         proxy = entity.parse_proxy_string(query['proxy'])
         proxy.recheck_every = query['recheck_every']
@@ -185,13 +222,13 @@ class Server(web.Application):
         self.db.add(proxy)
         self.db.commit()
 
-        return Response(text=json.dumps({'result': 'ok', 'error': False}))
+        return Response(text=json.dumps({'result': {'id': proxy.id}, 'error': False}))
 
     async def list(self, request):
         try:
             filters = self.list_validate(request)
         except APIException as e:
-            return Response(text=json.dumps({'result': 'error', 'error': str(e)}))
+            return Response(text=json.dumps({'result': str(e), 'error': True}))
 
         if filters.get('alive_only'):
             query = text(sql.GET_ALIVE_PROXIES)
@@ -214,12 +251,12 @@ class Server(web.Application):
         try:
             query = self.remove_validate(request)
         except APIException as e:
-            return Response(text=json.dumps({'result': 'error', 'error': str(e)}))
+            return Response(text=json.dumps({'result': str(e), 'error': True}))
 
-        self.db.query(entity.Proxy).filter(entity.Proxy.id == query['id']).delete()
+        is_really_removed = self.db.query(entity.Proxy).filter(entity.Proxy.id == query['id']).delete()
         self.db.commit()
 
-        result = {'result': 'ok', 'error': False}
+        result = {'result': 'ok' if is_really_removed else 'not_exists', 'error': False}
 
         return Response(text=json.dumps(result, default=entity.serializer))
 
@@ -227,11 +264,12 @@ class Server(web.Application):
         try:
             query = self.add_check_validate(request)
         except APIException as e:
-            return Response(text=json.dumps({'result': 'error', 'error': str(e)}))
+            return Response(text=json.dumps({'result': str(e), 'error': True}))
 
+        check = entity.Check(**query['definition'])
+        self.db.commit()
 
-
-        result = {'result': 'ok', 'error': False}
+        result = {'result': {'id': check.id}, 'error': False}
 
         return Response(text=json.dumps(result, default=entity.serializer))
 
@@ -239,7 +277,7 @@ class Server(web.Application):
         try:
             query = self.remove_check_validate(request)
         except APIException as e:
-            return Response(text=json.dumps({'result': 'error', 'error': str(e)}))
+            return Response(text=json.dumps({'result': str(e), 'error': True}))
 
         result = {'result': 'ok', 'error': False}
 
@@ -249,7 +287,7 @@ class Server(web.Application):
         try:
             query = self.add_proxy_check_validate(request)
         except APIException as e:
-            return Response(text=json.dumps({'result': 'error', 'error': str(e)}))
+            return Response(text=json.dumps({'result': str(e), 'error': True}))
 
         result = {'result': 'ok', 'error': False}
 
@@ -259,7 +297,7 @@ class Server(web.Application):
         try:
             query = self.remove_proxy_check_validate(request)
         except APIException as e:
-            return Response(text=json.dumps({'result': 'error', 'error': str(e)}))
+            return Response(text=json.dumps({'result': str(e), 'error': True}))
 
         result = {'result': 'ok', 'error': False}
 
