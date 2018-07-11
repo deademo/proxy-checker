@@ -139,6 +139,7 @@ class ProxyCheckDefinition(Base):
 class CheckDefinition(Base):
     __tablename__ = 'check_definition'
     __table_args__ = (UniqueConstraint('definition', name='check_definition_uix'), )
+    _decoded_definition = None
 
     id = Column(Integer, primary_key=True)
     definition = Column(String)

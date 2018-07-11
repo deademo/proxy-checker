@@ -25,6 +25,7 @@ class Server(web.Application):
         self.router.add_get('/add', self.add)
         self.router.add_get('/remove', self.remove)
         self.router.add_get('/add_check', self.add_check)
+        self.router.add_get('/list_check', self.list_check)
         self.router.add_get('/remove_check', self.remove_check)
         self.router.add_get('/add_proxy_check', self.add_proxy_check)
         self.router.add_get('/remove_proxy_check', self.remove_proxy_check)
@@ -50,6 +51,9 @@ class Server(web.Application):
 
     def _get_bool(self, value):
         return value in settings.TRUE_VALUES
+
+    def _response(self, data):
+        return Response(text=json.dumps(data, default=entity.serializer))
 
     def add_validate(self, request):
         query = {}
@@ -106,7 +110,7 @@ class Server(web.Application):
 
         for key in request.query.keys():
             if key not in ('definition', ):
-                raise APIException('Attribute \'{}\' is not allowed in \'add_check_validate\' method'.format(key))
+                raise APIException('Attribute \'{}\' is not allowed in \'add_check\' method'.format(key))
 
         definition = request.query.get('definition')
 
@@ -160,13 +164,12 @@ class Server(web.Application):
 
         return {'definition': query}
 
-    def remove_check_validate(self, request):
+    def list_check_validate(self, request):
         query = {}
 
         for key in request.query.keys():
             if key not in ('id', ):
-                raise APIException('Attribute \'{}\' is not allowed in \'remove_check_validate\' method'.format(key))
-
+                raise APIException('Attribute \'{}\' is not allowed in \'list_check\' method'.format(key))
 
         query['id'] = request.query.get('id')
         try:
@@ -175,6 +178,22 @@ class Server(web.Application):
             raise APIException('Value of attribute \'id\' should be intstring, but \'{}\' got'.format(query['id']))
 
         return query
+
+    def remove_check_validate(self, request):
+        query = {}
+
+        for key in request.query.keys():
+            if key not in ('id', ):
+                raise APIException('Attribute \'{}\' is not allowed in \'remove_check\' method'.format(key))
+
+        query['id'] = request.query.get('id')
+        try:
+            query['id'] = int(query['id'])
+        except ValueError:
+            raise APIException('Value of attribute \'id\' should be intstring, but \'{}\' got'.format(query['id']))
+
+        return query
+
 
     def add_proxy_check_validate(self, request):
         query = {}
@@ -273,13 +292,30 @@ class Server(web.Application):
 
         return Response(text=json.dumps(result, default=entity.serializer))
 
+    async def list_check(self, request):
+        try:
+            query = self.list_check_validate(request)
+        except APIException as e:
+            return Response(text=json.dumps({'result': str(e), 'error': True}))
+
+        check = self.db.query(entity.CheckDefinition).filter(entity.CheckDefinition.id == query['id']).first()
+        if not check:
+            return self._response({'result': 'not_exists', 'error': True})
+
+        result = {'result': {'id': check.id, 'definition': check.decoded_definition}, 'error': False}
+
+        return Response(text=json.dumps(result, default=entity.serializer))
+
     async def remove_check(self, request):
         try:
             query = self.remove_check_validate(request)
         except APIException as e:
             return Response(text=json.dumps({'result': str(e), 'error': True}))
 
-        result = {'result': 'ok', 'error': False}
+        is_really_removed = self.db.query(entity.CheckDefinition).filter(entity.CheckDefinition.id == query['id']).delete()
+        self.db.commit()
+
+        result = {'result': 'ok' if is_really_removed else 'not_exists', 'error': False}
 
         return Response(text=json.dumps(result, default=entity.serializer))
 
@@ -289,9 +325,18 @@ class Server(web.Application):
         except APIException as e:
             return Response(text=json.dumps({'result': str(e), 'error': True}))
 
-        result = {'result': 'ok', 'error': False}
+        check = self.db.query(entity.CheckDefinition).filter(entity.CheckDefinition.id == query['check_id']).first()
+        if not check:
+            return self._response({'result': 'check_not_exists', 'error': True})
 
-        return Response(text=json.dumps(result, default=entity.serializer))
+        proxy = self.db.query(entity.Proxy).filter(entity.Proxy.id == query['proxy_id']).first()
+        if not proxy:
+            return self._response({'result': 'proxy_not_exists', 'error': True})
+
+        entity.get_or_create(entity.ProxyCheckDefinition, proxy=proxy, check_definition=check)
+        self.db.commit()
+
+        return self._response({'result': 'ok', 'error': False})
 
     async def remove_proxy_check(self, request):
         try:
@@ -299,9 +344,10 @@ class Server(web.Application):
         except APIException as e:
             return Response(text=json.dumps({'result': str(e), 'error': True}))
 
-        result = {'result': 'ok', 'error': False}
+        is_really_removed = self.db.query(entity.ProxyCheckDefinition).filter_by(proxy_id=query['proxy_id'], check_definition_id=query['check_id']).delete()
 
-        return Response(text=json.dumps(result, default=entity.serializer))
+        return self._response({'result': 'ok' if is_really_removed else 'not_exists', 'error': False})
+
 
 
 def main():

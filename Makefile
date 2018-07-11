@@ -1,6 +1,6 @@
 venv:
 	python -m pip install virtualenv
-	python -m virtualenv venv
+	python -m virtualenv -p python3 venv
 	venv/bin/python -m pip install -r proxy_checker/requirements.txt
 
 venv_win:
@@ -9,10 +9,17 @@ venv_win:
 	venv\\Scripts\\python.exe -m pip install -r proxy_checker/requirements.txt
 
 build:
-	docker build -t proxy_checker .
+	docker build -t deademo/proxy_checker .
+
+push:
+	docker tag proxy_checker deademo/proxy_checker
+	docker push deademo/proxy_checker
 
 run:
-	docker run -it proxy_checker /bin/sh
+	docker run -it deademo/proxy_checker
+
+enter:
+	docker run -it deademo/proxy_checker /bin/sh
 
 dev_win:
 	docker run -v C:/py/proxy-checker:/proxy_checker/ -v /proxy_checker/venv -it proxy_checker /bin/sh

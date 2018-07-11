@@ -43,7 +43,10 @@ class TestAPI(asynctest.TestCase):
         url = 'http://{}:{}/{}?{}'.format(self._host, self._port, method, urllib.parse.urlencode(params))
         async with self.session.get(url) as request:
             content = await request.text()
-            return json.loads(content)
+            try:
+                return json.loads(content)
+            except:
+                print('Got error with deserializing response json. Response:\n{}'.format(content))
 
     async def test_server_works(self):
         result = await self.request('list')
@@ -97,3 +100,83 @@ class TestAPI(asynctest.TestCase):
         definition = {'url': 'http://google.com'}
         result = await self.request('add_check', {'definition': json.dumps(definition)})
         self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+    async def test_add_check_definition_dublicate(self):
+        definition = {'url': 'http://google.com'}
+        result = await self.request('add_check', {'definition': json.dumps(definition)})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('add_check', {'definition': json.dumps(definition)})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+    async def test_list_check_definition(self):
+        definition = {'url': 'http://google.com'}
+        result = await self.request('add_check', {'definition': json.dumps(definition)})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('list_check', {'id': 1})
+        self.assertEqual(result, {'result': {
+                'definition': {
+                    'check_xpath': [],
+                    'status': [200],
+                    'timeout': 2,
+                    'url': 'http://google.com'
+                },
+                'id': 1
+            }, 'error': False})
+
+    async def test_list_check_definition_not_exists(self):
+        result = await self.request('list_check', {'id': 1})
+        self.assertEqual(result, {'result': 'not_exists', 'error': True})
+
+    async def test_remove_check_definition(self):
+        definition = {'url': 'http://google.com'}
+        result = await self.request('add_check', {'definition': json.dumps(definition)})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('remove_check', {'id': 1})
+        self.assertEqual(result, {'result': 'ok', 'error': False})
+
+    async def test_remove_check_definition_not_exists(self):
+        result = await self.request('remove_check', {'id': 1})
+        self.assertEqual(result, {'result': 'not_exists', 'error': False})
+
+    async def test_add_proxy_check(self):
+        result = await self.request('add_check', {'definition': json.dumps({'url': 'http://google.com'})})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('add', {'proxy': 'http://google.com:3333'})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_id': 1})
+        self.assertEqual(result, {'result': 'ok', 'error': False})
+
+    async def test_add_proxy_check_dublicate(self):
+        result = await self.request('add_check', {'definition': json.dumps({'url': 'http://google.com'})})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('add', {'proxy': 'http://google.com:3333'})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_id': 1})
+        self.assertEqual(result, {'result': 'ok', 'error': False})
+
+        result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_id': 1})
+        self.assertEqual(result, {'result': 'ok', 'error': False})        
+
+    async def test_remove_proxy_check(self):
+        result = await self.request('add_check', {'definition': json.dumps({'url': 'http://google.com'})})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('add', {'proxy': 'http://google.com:3333'})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_id': 1})
+        self.assertEqual(result, {'result': 'ok', 'error': False})
+
+        result = await self.request('remove_proxy_check', {'proxy_id': 1, 'check_id': 1})
+        self.assertEqual(result, {'result': 'ok', 'error': False})        
+
+    async def test_remove_proxy_check_not_exists(self):
+        result = await self.request('remove_proxy_check', {'proxy_id': 1, 'check_id': 1})
+        self.assertEqual(result, {'result': 'not_exists', 'error': False})        
