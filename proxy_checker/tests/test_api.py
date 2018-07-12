@@ -13,9 +13,12 @@ import server
 
 
 class TestAPI(asynctest.TestCase):
+    db_file_counter = 0
+
     async def setUp(self):
         self.loop = asyncio.get_event_loop()
-        self.db_file_path = 'test{}.db'.format(int(time.time()))
+        self.db_file_counter += 1
+        self.db_file_path = 'test{}.db'.format(self.db_file_counter)
         self.db_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), self.db_file_path)
         entity.create_models(engine=entity.get_engine(db_file_name=self.db_file_path))
         self.app = server.Server(db=entity.get_session(db_file_name=self.db_file_path))
