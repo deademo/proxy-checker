@@ -33,6 +33,7 @@ class Server(web.Application):
             self.db = entity.get_session()
         else:
             self.db = db
+        self._db_semaphore = asyncio.Semaphore()
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(settings.LOG_LEVEL)
@@ -40,13 +41,21 @@ class Server(web.Application):
     async def close(self):
         self.db.close()
 
-    @property
-    def _ban_map(self):
+    async def db_aquire(self):
+        await self._db_semaphore.acquire()
+        return self.db
+
+    async def db_release(self):
+        self._db_semaphore.release()
+
+    async def _ban_map(self):
         banned_at = {}
+        db = await self.db_aquire()
         for ban in self.db.execute(sql.GET_BANNED_AT).fetchall():
             ban = dict(ban)
             banned_at.setdefault(ban['id'], [])
             banned_at[ban['id']].append(ban['netloc'])
+        db = await self.db_release()
         return banned_at
 
     def _get_bool(self, value):
@@ -238,8 +247,10 @@ class Server(web.Application):
         proxy = entity.parse_proxy_string(query['proxy'])
         proxy.recheck_every = query['recheck_every']
 
-        self.db.add(proxy)
-        self.db.commit()
+        db = await self.db_aquire()
+        db.add(proxy)
+        db.commit()
+        await self.db_release()
 
         return Response(text=json.dumps({'result': {'id': proxy.id}, 'error': False}))
 
@@ -254,9 +265,10 @@ class Server(web.Application):
         else:
             query = select([entity.Proxy])
         proxies = self.db.execute(query).fetchall()
+        await self.db_release()
 
         result = []
-        banned_at = self._ban_map
+        banned_at = await self._ban_map()
         for proxy in proxies:
             b = {}
             b['id'] = proxy['id']
@@ -272,8 +284,10 @@ class Server(web.Application):
         except APIException as e:
             return Response(text=json.dumps({'result': str(e), 'error': True}))
 
-        is_really_removed = self.db.query(entity.Proxy).filter(entity.Proxy.id == query['id']).delete()
-        self.db.commit()
+        db = await self.db_aquire()
+        is_really_removed = db.query(entity.Proxy).filter(entity.Proxy.id == query['id']).delete()
+        db.commit()
+        await self.db_release()
 
         result = {'result': 'ok' if is_really_removed else 'not_exists', 'error': False}
 
@@ -285,8 +299,10 @@ class Server(web.Application):
         except APIException as e:
             return Response(text=json.dumps({'result': str(e), 'error': True}))
 
+        db = await self.db_aquire()
         check = entity.Check(**query['definition'])
-        self.db.commit()
+        db.commit()
+        await self.db_release()
 
         result = {'result': {'id': check.id}, 'error': False}
 
@@ -298,7 +314,9 @@ class Server(web.Application):
         except APIException as e:
             return Response(text=json.dumps({'result': str(e), 'error': True}))
 
-        check = self.db.query(entity.CheckDefinition).filter(entity.CheckDefinition.id == query['id']).first()
+        db = await self.db_aquire()
+        check = db.query(entity.CheckDefinition).filter(entity.CheckDefinition.id == query['id']).first()
+        await self.db_release()
         if not check:
             return self._response({'result': 'not_exists', 'error': True})
 
@@ -312,8 +330,10 @@ class Server(web.Application):
         except APIException as e:
             return Response(text=json.dumps({'result': str(e), 'error': True}))
 
-        is_really_removed = self.db.query(entity.CheckDefinition).filter(entity.CheckDefinition.id == query['id']).delete()
+        db = await self.db_aquire()
+        is_really_removed = db.query(entity.CheckDefinition).filter(entity.CheckDefinition.id == query['id']).delete()
         self.db.commit()
+        await self.db_release()
 
         result = {'result': 'ok' if is_really_removed else 'not_exists', 'error': False}
 
@@ -325,16 +345,21 @@ class Server(web.Application):
         except APIException as e:
             return Response(text=json.dumps({'result': str(e), 'error': True}))
 
-        check = self.db.query(entity.CheckDefinition).filter(entity.CheckDefinition.id == query['check_id']).first()
+        db = self.db
+        check = db.query(entity.CheckDefinition).filter(entity.CheckDefinition.id == query['check_id']).first()
+        await self.db_release()
         if not check:
             return self._response({'result': 'check_not_exists', 'error': True})
 
-        proxy = self.db.query(entity.Proxy).filter(entity.Proxy.id == query['proxy_id']).first()
+        db = self.db
+        proxy = db.query(entity.Proxy).filter(entity.Proxy.id == query['proxy_id']).first()
+        await self.db_release()
         if not proxy:
             return self._response({'result': 'proxy_not_exists', 'error': True})
 
         entity.get_or_create(entity.ProxyCheckDefinition, proxy=proxy, check_definition=check)
         self.db.commit()
+        await self.db_release()
 
         return self._response({'result': 'ok', 'error': False})
 
@@ -344,7 +369,9 @@ class Server(web.Application):
         except APIException as e:
             return Response(text=json.dumps({'result': str(e), 'error': True}))
 
-        is_really_removed = self.db.query(entity.ProxyCheckDefinition).filter_by(proxy_id=query['proxy_id'], check_definition_id=query['check_id']).delete()
+        db = self.db
+        is_really_removed = db.query(entity.ProxyCheckDefinition).filter_by(proxy_id=query['proxy_id'], check_definition_id=query['check_id']).delete()
+        await self.db_release()
 
         return self._response({'result': 'ok' if is_really_removed else 'not_exists', 'error': False})
 
