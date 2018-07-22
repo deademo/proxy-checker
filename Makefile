@@ -16,7 +16,7 @@ push:
 	docker push deademo/proxy_checker
 
 run:
-	docker run -it deademo/proxy_checker
+	docker-compose up
 
 enter:
 	docker run -it deademo/proxy_checker /bin/sh

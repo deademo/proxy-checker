@@ -3,21 +3,21 @@ import argparse
 import logging
 import time
 
-import entity
-import settings
-from worker import Worker
+import tqdm
+
 from manager import Manager
-from entity import parse_proxy_string
+import settings
+from db import Check, get_session, parse_proxy_string
+from worker import Worker
 from xpath_check import XPathCheck, BanXPathCheck
 
-import tqdm
 
 
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument('--debug', action='store_true', required=False)
 
 
-def main():
+async def async_main():
     from proxies import proxies
     global proxies
 
@@ -25,8 +25,7 @@ def main():
     if args.debug:
         settings.enable_debug_mode()
 
-    entity.create_models()
-    session = entity.get_session()
+    session = await get_session()
 
     concurent_requests = 50
     workers_count = 5
@@ -34,12 +33,12 @@ def main():
 
     start_time = time.time()
     checks = []
-    checks.append(entity.Check(
+    checks.append(await Check(
         'http://google.com',
         status=[200, 301],
         xpath='.//input[contains(@name, "btn") and @type="submit"]'
     ))
-    checks.append(entity.Check(
+    checks.append(await Check(
         'https://www.amazon.com/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords=Xiaomi+MI+A1+(64GB%2C+4GB+RAM)&rh=i%3Aaps%2Ck%3AXiaomi+MI+A1+(64GB%5Cc+4GB+RAM)',
         status=200,
         xpath=(
@@ -49,7 +48,7 @@ def main():
             BanXPathCheck('.//*[contains(text(), "Type the characters you see in this image")]'),
         )
     ))
-    checks.append(entity.Check(
+    checks.append(await Check(
         'https://www.olx.ua', 
         status=200, 
         xpath=(
@@ -70,7 +69,7 @@ def main():
         )
         manager.workers.append(worker)
         
-    proxies = [parse_proxy_string(proxy) for proxy in proxies]
+    proxies = [await parse_proxy_string(proxy) for proxy in proxies]
     for proxy in proxies[:]:
         if not proxy.protocol:
             for protocol in settings.POSSIBLE_PROTOCOLS:
@@ -83,7 +82,7 @@ def main():
 
     for proxy in proxies:
         for check in checks:
-            proxy.add_check_definition(check)
+            await proxy.add_check_definition(check)
     session.commit()
 
     for proxy in proxies:
@@ -94,26 +93,23 @@ def main():
     asyncio.ensure_future(asyncio.gather(*[x.start() for x in manager.workers]))
     asyncio.ensure_future(manager.start())
 
-    loop.run_until_complete(asyncio.gather(*[x.stop() for x in manager.workers]))
-    loop.run_until_complete(asyncio.gather(*[x.wait_stop() for x in manager.workers]))
-    loop.run_until_complete(manager.stop())
-    loop.run_until_complete(manager.wait_stop())
-
-    loop.close()
-
-    for proxy in proxies:
-        session.add(proxy)
-    session.commit()
+    await asyncio.gather(*[x.stop() for x in manager.workers])
+    await asyncio.gather(*[x.wait_stop() for x in manager.workers])
+    await manager.stop()
+    await manager.wait_stop()
 
     alive = sorted(filter(lambda x: x.is_alive, proxies), key=lambda x: x.time)
     for proxy in alive:
-        banned_on = proxy.banned_on
+        banned_on = await proxy.banned_on()
         banned_on = ', banned on: '+(', '.join([x for x in banned_on])) if banned_on else ''
         manager.logger.info('{:0.3f} s, {}{}'.format(proxy.time, proxy, banned_on))
 
     delta_time = time.time() - start_time
     manager.logger.info('{}/{} proxies alive. Checked {} proxies for {:0.2f} s. {:0.0f} proxies per second with {} concurent requests.'.format(len(alive), len(proxies), len(proxies), delta_time, len(proxies)/delta_time, concurent_requests))
 
+
+def main():
+    asyncio.get_event_loop().run_until_complete(async_main())
 
 
 if __name__ == '__main__':

@@ -1,0 +1,14 @@
+version: '3.6'
+
+services:
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: user
+      POSTGRES_DB: proxy_checker
+  
+  proxy_checker:
+    image: deademo/proxy_checker:latest
+    link:
+      - postgres

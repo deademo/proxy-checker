@@ -1,8 +1,8 @@
 import asyncio
-import entity
 import logging
 import time
 
+from db import get_session, init_db
 import settings
 
 
@@ -39,6 +39,7 @@ class Manager:
         self.workers = []
         self.logger = logging.getLogger(__class__.__name__)
         self.logger.setLevel(settings.LOG_LEVEL)
+        self.db = None      
 
     def put(self, item):
         self.queue[str(item)] = ProcessItem(item)
@@ -50,18 +51,31 @@ class Manager:
     async def start(self):
         self.logger.info('Manager main loop started')
 
+        self.db = await get_session()
+        init_db()
+        asyncio.ensure_future(self._start_sync_loop())
+
         self._is_running = True
         while self._is_running and not self._is_need_to_stop:
             for key, item in self.queue.items():
                 if item.is_need_to_process:
                     self.logger.debug('Trying to process {}'.format(item.item))
                     if self.send_to_worker(item):
-                        self.logger.debug('Successfuly processed {}'.format(item.item))
+                        self.logger.debug('Successfully processed {}'.format(item.item))
                         item.processed()
             await asyncio.sleep(0.5)
         self._is_running = False
 
-        self.logger.info('Manager main loop stopped')
+        self.logger.info('Manager main loop successfully stopped')
+
+    async def _start_sync_loop(self):
+        while self._is_running and not self._is_need_to_stop:
+            self.logger.info('Doing sync')
+            await self._sync_with_db()
+            await asyncio.sleep(3)
+
+    async def _sync_with_db(self):
+        pass
 
     def send_to_worker(self, process_item):
         workers = [x for x in self.workers if x.is_running]
@@ -78,3 +92,4 @@ class Manager:
     async def wait_stop(self):
         while self.is_running:
             await asyncio.sleep(0.1)
+

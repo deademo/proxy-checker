@@ -1,6 +1,7 @@
 import asyncio
-import entity
 import logging
+
+from checker import MultiCheck
 
 import settings
 
@@ -50,7 +51,7 @@ class Worker:
         while self._is_running:
             if self.queue.qsize() != 0:
                 item = await self.queue.get()
-                check = entity.MultiCheck(*item.check_definitions).check
+                check = MultiCheck(*item.check_definitions).check
                 self._internal_queue.append(asyncio.ensure_future(check(item)))
 
             is_continue = True
@@ -74,7 +75,7 @@ class Worker:
                 self._is_running = True
                 await asyncio.sleep(0.5)
 
-        self.logger.info('Worker main loop stopped')
+        self.logger.info('Worker main loop successfully stopped')
 
     async def stop(self):
         self._stop_after_queue_processed = True
