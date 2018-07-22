@@ -104,6 +104,14 @@ class TestAPI(asynctest.TestCase):
         result = await self.request('add_check', {'definition': json.dumps(definition)})
         self.assertEqual(result, {'result': {'id': 1}, 'error': False})
 
+    async def test_add_check_definition_by_name(self):
+        definition = {'url': 'http://google.com'}
+        result = await self.request('add_check', {
+            'definition': json.dumps(definition),
+            'name': 'test123'
+        })
+        self.assertEqual(result, {'result': {'id': 1, 'name': 'test123'}, 'error': False})
+
     async def test_add_check_definition_dublicate(self):
         definition = {'url': 'http://google.com'}
         result = await self.request('add_check', {'definition': json.dumps(definition)})
@@ -111,6 +119,21 @@ class TestAPI(asynctest.TestCase):
 
         result = await self.request('add_check', {'definition': json.dumps(definition)})
         self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+    async def test_add_check_definition_dublicate_by_name(self):
+        definition = {'url': 'http://google.com'}
+        result = await self.request('add_check', {
+            'definition': json.dumps(definition),
+            'name': 'test123',
+        })
+        self.assertEqual(result, {'result': {'id': 1, 'name': 'test123'}, 'error': False})
+
+        definition = {'url': 'http://google123.com'}
+        result = await self.request('add_check', {
+            'definition': json.dumps(definition),
+            'name': 'test123',
+        })
+        self.assertEqual(result, {'result': 'Check already exists with same definition or name', 'error': True})
 
     async def test_list_check_definition(self):
         definition = {'url': 'http://google.com'}
@@ -128,21 +151,86 @@ class TestAPI(asynctest.TestCase):
                 'id': 1
             }, 'error': False})
 
+    async def test_list_check_definition_by_name(self):
+        definition = {'url': 'http://google.com'}
+        result = await self.request('add_check', {
+            'definition': json.dumps(definition),
+            'name': 'test123'
+        })
+        self.assertEqual(result, {'result': {'id': 1, 'name': 'test123'}, 'error': False})
+
+        result = await self.request('list_check', {'name': 'test123'})
+        self.assertEqual(result, {'result': {
+                'definition': {
+                    'check_xpath': [],
+                    'status': [200],
+                    'timeout': 2,
+                    'url': 'http://google.com'
+                },
+                'id': 1
+            }, 'error': False})
+
+    async def test_list_check_definition_by_name_and_id(self):
+        definition = {'url': 'http://google.com'}
+        result = await self.request('add_check', {
+            'definition': json.dumps(definition),
+            'name': 'test123'
+        })
+        self.assertEqual(result, {'result': {'id': 1, 'name': 'test123'}, 'error': False})
+
+        result = await self.request('list_check', {'name': 'test123', 'id': 1})
+        self.assertEqual(result, {
+            'result': '"id" and "name" provided. To identify check should be only one of these keys.', 
+            'error': True
+        })
+
     async def test_list_check_definition_not_exists(self):
         result = await self.request('list_check', {'id': 1})
         self.assertEqual(result, {'result': 'not_exists', 'error': True})
 
+    async def test_list_check_definition_not_exists_by_name(self):
+        result = await self.request('list_check', {'name': 'test123'})
+        self.assertEqual(result, {'result': 'not_exists', 'error': True})
+
+    async def test_list_check_definition_no_identifier(self):
+        result = await self.request('list_check', {})
+        self.assertEqual(result, {
+            'error': True,
+            'result': 'No "id" and "name" provided. To identify check should be one of these keys.'
+        })
+
     async def test_remove_check_definition(self):
         definition = {'url': 'http://google.com'}
-        result = await self.request('add_check', {'definition': json.dumps(definition)})
-        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+        result = await self.request('add_check', {
+            'definition': json.dumps(definition),
+            'name': 'test123',
+        })
+        self.assertEqual(result, {'result': {'id': 1, 'name': 'test123'}, 'error': False})
 
-        result = await self.request('remove_check', {'id': 1})
+        result = await self.request('remove_check', {'name': 'test123'})
         self.assertEqual(result, {'result': 'ok', 'error': False})
 
     async def test_remove_check_definition_not_exists(self):
         result = await self.request('remove_check', {'id': 1})
         self.assertEqual(result, {'result': 'not_exists', 'error': False})
+
+    async def test_remove_check_definition_not_exists_by_name(self):
+        result = await self.request('remove_check', {'name': 'test123'})
+        self.assertEqual(result, {'result': 'not_exists', 'error': False})
+
+    async def test_remove_check_definition_by_name_and_id(self):
+        result = await self.request('remove_check', {'name': 'test123', 'id': 123})
+        self.assertEqual(result, {
+            'error': True,
+            'result': '"id" and "name" provided. To identify check should be only one of these keys.'
+        })
+
+    async def test_remove_check_definition_no_identifier(self):
+        result = await self.request('remove_check', {})
+        self.assertEqual(result, {
+            'error': True,
+            'result': 'No "id" and "name" provided. To identify check should be one of these keys.'
+        })
 
     async def test_add_proxy_check(self):
         result = await self.request('add_check', {'definition': json.dumps({'url': 'http://google.com'})})
@@ -153,6 +241,40 @@ class TestAPI(asynctest.TestCase):
 
         result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_id': 1})
         self.assertEqual(result, {'result': 'ok', 'error': False})
+
+    async def test_add_proxy_check_proxy_no_identifier(self):
+        result = await self.request('add_proxy_check', {'check_id': 1})
+        self.assertEqual(result, {
+            'error': True,
+            'result': "Value of attribute 'proxy_id' should be int, but 'None' got"
+        })
+
+    async def test_add_proxy_check_check_no_identifier(self):
+        result = await self.request('add_proxy_check', {'proxy_id': 1})
+        self.assertEqual(result, {
+            'error': True,
+            'result': 'No "check_id" and "check_name" provided. To identify check should be one of these keys.'
+        })
+
+    async def test_add_proxy_check_by_name(self):
+        result = await self.request('add_check', {
+            'definition': json.dumps({'url': 'http://google.com'}),
+            'name': 'test123'
+        })
+        self.assertEqual(result, {'result': {'id': 1, 'name': 'test123'}, 'error': False})
+
+        result = await self.request('add', {'proxy': 'http://google.com:3333'})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_name': 'test123'})
+        self.assertEqual(result, {'result': 'ok', 'error': False})
+
+    async def test_add_proxy_check_by_name_and_id(self):
+        result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_id': 1, 'check_name': 'test123'})
+        self.assertEqual(result, {
+            'error': True,
+            'result': '"check_id" and "check_name" provided. To identify check should be only one of these keys.'
+        })
 
     async def test_add_proxy_check_dublicate(self):
         result = await self.request('add_check', {'definition': json.dumps({'url': 'http://google.com'})})
@@ -165,9 +287,25 @@ class TestAPI(asynctest.TestCase):
         self.assertEqual(result, {'result': 'ok', 'error': False})
 
         result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_id': 1})
-        self.assertEqual(result, {'result': 'ok', 'error': False})        
+        self.assertEqual(result, {'result': 'ok', 'error': False})
 
-    async def test_remove_proxy_check(self):
+    async def test_add_proxy_check_dublicate_by_name(self):
+        result = await self.request('add_check', {
+            'definition': json.dumps({'url': 'http://google.com'}),
+            'name': 'test123'
+        })
+        self.assertEqual(result, {'result': {'id': 1, 'name': 'test123'}, 'error': False})
+
+        result = await self.request('add', {'proxy': 'http://google.com:3333'})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_name': 'test123'})
+        self.assertEqual(result, {'result': 'ok', 'error': False})
+
+        result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_name': 'test123'})
+        self.assertEqual(result, {'result': 'ok', 'error': False})
+
+    async def test_remove_proxy_check_by_id(self):
         result = await self.request('add_check', {'definition': json.dumps({'url': 'http://google.com'})})
         self.assertEqual(result, {'result': {'id': 1}, 'error': False})
 
@@ -180,6 +318,55 @@ class TestAPI(asynctest.TestCase):
         result = await self.request('remove_proxy_check', {'proxy_id': 1, 'check_id': 1})
         self.assertEqual(result, {'result': 'ok', 'error': False})        
 
+    async def test_remove_proxy_check_by_name(self):
+        result = await self.request('add_check', {
+            'definition': json.dumps({'url': 'http://google.com'}),
+            'name': 'test123'
+        })
+        self.assertEqual(result, {'result': {'id': 1, 'name': 'test123'}, 'error': False})
+
+        result = await self.request('add', {'proxy': 'http://google.com:3333'})
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_name': 'test123'})
+        self.assertEqual(result, {'result': 'ok', 'error': False})
+
+        result = await self.request('remove_proxy_check', {'proxy_id': 1, 'check_name': 'test123'})
+        self.assertEqual(result, {'result': 'ok', 'error': False})
+
     async def test_remove_proxy_check_not_exists(self):
-        result = await self.request('remove_proxy_check', {'proxy_id': 1, 'check_id': 1})
+        result = await self.request('remove_proxy_check', {'proxy_id': 1, 'check_name': 'test123'})
         self.assertEqual(result, {'result': 'not_exists', 'error': False})        
+
+    async def test_remove_proxy_check_proxy_no_identifier(self):
+        result = await self.request('remove_proxy_check', {'check_id': 1})
+        self.assertEqual(result, {
+            'error': True,
+            'result': "Value of attribute 'proxy_id' should be int, but 'None' got"
+        })
+
+    async def test_remove_proxy_check_by_name_and_id(self):
+        result = await self.request('remove_proxy_check', {'proxy_id': 1, 'check_name': 'test123', 'check_id': 1})
+        self.assertEqual(result, {
+            'error': True, 
+            'result': '"check_id" and "check_name" provided. To identify check should be only one of these keys.'
+        })
+
+    async def test_remove_proxy_check_check_no_identifier(self):
+        result = await self.request('remove_proxy_check', {'proxy_id': 1})
+        self.assertEqual(result, {
+            'error': True, 
+            'result': 'No "check_id" and "check_name" provided. To identify check should be one of these keys.'
+        })
+
+    async def test_async_request(self):
+        result = await asyncio.gather(*[
+            self.request('list_check', {'id': 1}),
+            self.request('list_check', {'id': 1}),
+            self.request('list_check', {'id': 1}),
+        ])
+        self.assertEqual(result, [
+            {'result': 'not_exists', 'error': True},
+            {'result': 'not_exists', 'error': True},
+            {'result': 'not_exists', 'error': True},
+        ])

@@ -142,6 +142,7 @@ class CheckDefinition(Base):
     _decoded_definition = None
 
     id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=True)
     definition = Column(String)
     netloc = Column(String)
 
@@ -297,12 +298,13 @@ def make_check_definition(url, status=200, xpath=[], timeout=None):
     return check
 
 
-def Check(*args, **kwargs):
+def Check(*args, name=None, **kwargs):
     check_definition = make_check_definition(*args, **kwargs)
     netloc = urllib.parse.urlparse(check_definition['url']).netloc
     return get_or_create(
         CheckDefinition, 
         definition=json.dumps(check_definition),
+        name=name,
         netloc=netloc,
     )
 
