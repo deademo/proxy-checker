@@ -16,7 +16,13 @@ push:
 	docker push deademo/proxy_checker
 
 run:
-	docker run -it deademo/proxy_checker
+	docker-compose up
+
+clean_docker:
+	docker-compose kill
+	docker-compose down
+
+restart: clean_docker run
 
 enter:
 	docker run -it deademo/proxy_checker /bin/sh
@@ -24,14 +30,21 @@ enter:
 dev_win:
 	docker run -v C:/py/proxy-checker:/proxy_checker/ -v /proxy_checker/venv -it proxy_checker /bin/sh
 
-test:
+test: venv only_test
+
+only_test:
 	cd proxy_checker && PYTHONPATH=. ../venv/bin/python -m unittest -v
 
-cov:
+cov: venv only_cov
+
+only_cov:
 	cd proxy_checker && PYTHONPATH=. ../venv/bin/python -m nose tests/test_*.py --with-coverage --cover-package=.
+
 
 test_win:
 	cd proxy_checker && PYTHONPATH=. ../venv/Scripts/python.exe -m unittest -v
 
 cov_win:
 	cd proxy_checker && PYTHONPATH=. ../venv/Scripts/python.exe -m nose --with-coverage --cover-package=.
+
+.PHONY: venv

@@ -1,0 +1,21 @@
+version: '3.5'
+
+services:
+  proxy_checker:
+    image: deademo/proxy_checker
+    entrypoint: "/proxy_checker/venv/bin/python /proxy_checker/proxy_checker/server.py"
+    volumes: 
+      - ".:/proxy_checker/"
+      - "/proxy_checker/venv"
+    links:
+      - postgres
+    ports:
+      - "3300:3300"
+  postgres:
+    image: postgres
+    volumes:
+      - "./proxy_checker_pg_data:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: proxy_checker
