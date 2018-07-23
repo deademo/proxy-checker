@@ -347,27 +347,47 @@ Proxy._check_definitions = relationship('ProxyCheckDefinition', order_by=ProxyCh
 def create_models(engine=None):
     if not engine:
         engine = get_engine()
-    Base.metadata.create_all(engine)
+    for i in range(5):
+        try:
+            Base.metadata.create_all(engine)
+            error = None
+        except Exception as e:
+            error = e
+            time.sleep(i*3)
+            continue
+        break
+    if error:
+        raise error
 
 
 def main():
     create_models()    
 
 
-def get_engine(db_file_name=None, force=False):
+def get_database_url():
+    return 'postgres://{user}:{password}@{host}/{database}'.format(**settings.DB)
+
+
+def get_sqlite_database_url(db_file_name=None):
+    import os
+    db_dir_path = os.path.abspath(os.path.dirname(__file__))
+    db_file_name = db_file_name or 'default.db'
+    db_path = os.path.join(db_dir_path, db_file_name)
+    return 'sqlite:///{}'.format(db_path)
+
+
+def get_engine(database_url=None, force=False):
+    if not database_url:
+        database_url = get_database_url()
     if not get_engine.engine or force:
-        import os
-        db_dir_path = os.path.abspath(os.path.dirname(__file__))
-        db_file_name = db_file_name or 'default.db'
-        db_path = os.path.join(db_dir_path, db_file_name)
-        get_engine.engine = create_engine('sqlite:///{}'.format(db_path), echo=settings.SQL_LOG_ENABLED)
+        get_engine.engine = create_engine(database_url, echo=settings.SQL_LOG_ENABLED)
     return get_engine.engine
 get_engine.engine = None
 
 
-def get_session(db_file_name=None, force=False):
+def get_session(database_url=None, force=False):
     if not get_session.session or force:
-        get_session.session = sessionmaker(bind=get_engine(db_file_name=db_file_name), autoflush=False)()
+        get_session.session = sessionmaker(bind=get_engine(database_url=database_url), autoflush=False)()
     return get_session.session
 get_session.session = None
 

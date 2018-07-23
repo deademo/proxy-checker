@@ -23,18 +23,22 @@ class Server(web.Application):
         super().__init__(*args, **kwargs)
 
         self.router.add_get('/list', self.list)
-        self.router.add_get('/add', self.add)
-        self.router.add_get('/remove', self.remove)
-        self.router.add_get('/add_check', self.add_check)
+        self.router.add_post('/list', self.list)
+        self.router.add_post('/add', self.add)
+        self.router.add_post('/remove', self.remove)
+        self.router.add_post('/add_check', self.add_check)
         self.router.add_get('/list_check', self.list_check)
-        self.router.add_get('/remove_check', self.remove_check)
-        self.router.add_get('/add_proxy_check', self.add_proxy_check)
-        self.router.add_get('/remove_proxy_check', self.remove_proxy_check)
+        self.router.add_post('/list_check', self.list_check)
+        self.router.add_post('/remove_check', self.remove_check)
+        self.router.add_post('/add_proxy_check', self.add_proxy_check)
+        self.router.add_post('/remove_proxy_check', self.remove_proxy_check)
+
         if not db:
             self.db = entity.get_session()
         else:
             self.db = db
         self._db_semaphore = asyncio.Semaphore()
+        entity.create_models()
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(settings.LOG_LEVEL)
@@ -451,7 +455,8 @@ class Server(web.Application):
 
 def main():
     server = Server()
-    web.run_app(server, host=settings.SERVER_HOST, port=settings.SERVER_PORT)
+    server.logger.info('Starting server on {}:{}...'.format(settings.SERVER_HOST, settings.SERVER_PORT))
+    web.run_app(server, host=settings.SERVER_HOST, port=settings.SERVER_PORT, access_log=server.logger)
 
 
 if __name__ == '__main__':

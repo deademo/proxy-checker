@@ -3,7 +3,7 @@ import logging
 DEBUG_MODE = True
 SQL_LOG_ENABLED = False
 
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.DEBUG
 PROGRESS_BAR_ENABLED = True
 DEFAULT_TIMEOUT = 2
 DEFAULT_CONCURENT_REQUESTS = 50
@@ -21,3 +21,16 @@ def enable_debug_mode():
 
 if DEBUG_MODE:
     enable_debug_mode()
+
+DB = {
+    'host': 'postgres',
+    'port': 5432,
+    'user': 'user',
+    'password': 'password',
+    'database': 'proxy_checker',
+}
+
+try:
+    from settings_local import *
+except ImportError:
+    pass

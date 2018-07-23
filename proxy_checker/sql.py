@@ -11,7 +11,7 @@ FROM (
     GROUP BY check_result.check_id, proxy.id
     ORDER BY check_result.done_at DESC
 ) as t
-WHERE t.is_passed = 1
+WHERE t.is_passed = TRUE
 GROUP BY t.id
 HAVING COUNT(*) = t.checks_count
 """
@@ -21,8 +21,8 @@ SELECT proxy.id, check_definition.netloc
 FROM proxy 
 JOIN check_result ON proxy.id = check_result.proxy_id 
 JOIN check_definition ON check_result.check_id = check_definition.id
-WHERE check_result.is_passed = 1
-AND check_result.is_banned = 1
-GROUP BY check_result.check_id, proxy.id
+WHERE check_result.is_passed = TRUE
+AND check_result.is_banned = TRUE
+GROUP BY check_result.check_id, proxy.id, check_definition.netloc, check_result.done_at
 ORDER BY check_result.done_at DESC
 """
