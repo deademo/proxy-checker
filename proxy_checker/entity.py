@@ -66,9 +66,9 @@ class Proxy(Base):
     __table_args__ = (UniqueConstraint('host', 'port', 'protocol', name='proxy_uix'), )
 
     id = Column(Integer, primary_key=True)
-    host = Column(String)
-    port = Column(String)
-    protocol = Column(String)
+    host = Column(String(1024))
+    port = Column(String(1024))
+    protocol = Column(String(1024))
     recheck_every = Column(Integer)
     created_at = Column(DateTime, default=datetime.datetime.utcnow())
 
@@ -99,7 +99,11 @@ class Proxy(Base):
 
     @property
     def check_definitions(self):
-        return [x.check_definition for x in self._check_definitions]
+        # TODO: needs to move these logic to separate class "Checker"
+        check_definitions = [x.check_definition for x in self._check_definitions]
+        for check_definition in check_definitions:
+            check_definition.__init__()
+        return check_definitions
 
     def add_check_definition(self, check_definition):
         definition_mapping = get_or_create(ProxyCheckDefinition, check_definition=check_definition, proxy=self)
@@ -142,10 +146,9 @@ class CheckDefinition(Base):
     _decoded_definition = None
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=True)
-    definition = Column(String)
-    netloc = Column(String)
-
+    name = Column(String(1024), unique=True, nullable=True)
+    definition = Column(String(3072))
+    netloc = Column(String(1024))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -181,7 +184,7 @@ class CheckDefinition(Base):
 
     @property
     def status(self):
-        return self.decoded_definition.get('status')
+        return [int(x) for x in self.decoded_definition.get('status')]
 
     @property
     def check_xpath(self):
@@ -218,6 +221,7 @@ class CheckDefinition(Base):
                 async with aiohttp.ClientSession(connector=ProxyConnector(verify_ssl=False), request_class=ProxyClientRequest, conn_timeout=self.timeout, read_timeout=self.timeout) as session:
                     async with session.get(self.url, proxy=str(proxy), headers=random_session()['headers']) as response:
                         content = await response.read()
+                        # self.logger.debug('Got response [{}]: {} bytes'.format(response.status, len(content))) #DELETE_DEBUG
                         result = response
         except possible_exceptions as e:
             result = e
@@ -226,7 +230,7 @@ class CheckDefinition(Base):
         is_passed = True
         is_banned = False
         if isinstance(result, aiohttp.client_reqrep.ClientResponse):
-            if self.check_xpath is not None:
+            if self.check_xpath:
                 any_xpath_worked = False
                 try:
                     doc = lxml.html.fromstring(content)
@@ -240,8 +244,7 @@ class CheckDefinition(Base):
                     pass
                 if not any_xpath_worked:
                     is_passed = False
-
-                    # self.logger.debug('No any xpath worked for proxy {} on url {} ({}):\n{}'.format(proxy, self.url, ", ".join(self.check_xpath), content.decode(errors='ignore')))
+                    # self.logger.debug('No any xpath worked for proxy {} on url {} ({}):'.format(proxy, self.url, ", ".join(self.check_xpath))) #DELETE_DEBUG
 
             if self.status and int(result.status) not in self.status:
                 self.logger.debug('{} not passed status code check on {}. {} got, but {} expected'.format(proxy, self.url, result.status, self.status))
@@ -325,7 +328,7 @@ class CheckResult(Base):
     is_banned = Column(Boolean)
     status = Column(Integer)
     time = Column(Integer)
-    error = Column(String)
+    error = Column(String(1024))
     proxy_id = Column(Integer, ForeignKey('proxy.id'))
     proxy = relationship('Proxy', back_populates='checks')
     check_id = Column(Integer, ForeignKey('check_definition.id'))
@@ -365,7 +368,7 @@ def main():
 
 
 def get_database_url():
-    return 'postgres://{user}:{password}@{host}/{database}'.format(**settings.DB)
+    return 'mysql://{user}:{password}@{host}/{database}'.format(**settings.DB)
 
 
 def get_sqlite_database_url(db_file_name=None):

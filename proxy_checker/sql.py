@@ -1,20 +1,23 @@
-GET_ALIVE_PROXIES = """
+_GET_PROXIES = """
 SELECT *
 FROM (
-    SELECT proxy.*, check_result.*, (
+    SELECT proxy.id, check_result.id as check_id, proxy.protocol, proxy.host, proxy.port, check_result.is_passed, (
         SELECT COUNT(*) 
         FROM proxy_check_definition 
         WHERE proxy_check_definition.proxy_id = proxy.id
     ) as checks_count
     FROM proxy 
-    JOIN check_result ON proxy.id = check_result.proxy_id 
+    LEFT JOIN check_result ON proxy.id = check_result.proxy_id 
     GROUP BY check_result.check_id, proxy.id
     ORDER BY check_result.done_at DESC
 ) as t
-WHERE t.is_passed = TRUE
+{where}
 GROUP BY t.id
-HAVING COUNT(*) = t.checks_count
+{having}
 """
+
+GET_ALIVE_PROXIES = _GET_PROXIES.format(where='WHERE t.is_passed = TRUE', having='HAVING COUNT(*) = t.checks_count')
+GET_PROXIES = _GET_PROXIES.format(where='', having='')
 
 GET_BANNED_AT = """
 SELECT proxy.id, check_definition.netloc

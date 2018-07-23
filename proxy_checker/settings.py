@@ -23,8 +23,8 @@ if DEBUG_MODE:
     enable_debug_mode()
 
 DB = {
-    'host': 'postgres',
-    'port': 5432,
+    'host': 'mariadb',
+    'port': 3306,
     'user': 'user',
     'password': 'password',
     'database': 'proxy_checker',

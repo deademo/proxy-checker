@@ -1,4 +1,5 @@
 import asyncio
+import argparse
 import json
 import logging
 import urllib.parse
@@ -10,8 +11,10 @@ import sqlalchemy.exc
 from sqlalchemy.orm import aliased
 
 import entity
+from manager import Manager
 import settings
 import sql
+from worker import Worker
 
 
 class APIException(BaseException):
@@ -298,7 +301,7 @@ class Server(web.Application):
         if filters.get('alive_only'):
             query = text(sql.GET_ALIVE_PROXIES)
         else:
-            query = select([entity.Proxy])
+            query = text(sql.GET_PROXIES)
         proxies = self.db.execute(query).fetchall()
         await self.db_release()
 
@@ -309,6 +312,7 @@ class Server(web.Application):
             b['id'] = proxy['id']
             b['proxy'] = '{}://{}:{}'.format(proxy['protocol'], proxy['host'], proxy['port'])
             b['banned_at'] = banned_at.get(proxy['id'], [])
+            b['is_passed'] = bool(proxy['is_passed'])
             result.append(b)
 
         return Response(text=json.dumps({'result': result, 'error': False}, default=entity.serializer))
@@ -452,11 +456,52 @@ class Server(web.Application):
         return self._response({'result': 'ok' if is_really_removed else 'not_exists', 'error': False})
 
 
+async def get_server(host, port):
+    server = Server()
+    runner = web.AppRunner(server)
+    await runner.setup()
+    site = web.TCPSite(runner, host, port)
+    return runner, site, server
+
 
 def main():
-    server = Server()
-    server.logger.info('Starting server on {}:{}...'.format(settings.SERVER_HOST, settings.SERVER_PORT))
-    web.run_app(server, host=settings.SERVER_HOST, port=settings.SERVER_PORT, access_log=server.logger)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-H', '--host', required=False, default=settings.SERVER_HOST)
+    parser.add_argument('-p', '--port', required=False, type=int, default=settings.SERVER_PORT)
+    args = parser.parse_args()
+
+    worker_count = 1
+    concurent_requests = 50
+
+    loop = asyncio.get_event_loop()
+    try:
+        # Running server
+        runner, site, server = loop.run_until_complete(get_server(args.host, args.port))
+        asyncio.ensure_future(site.start())
+        server.logger.info('Started server on {}:{}'.format(args.host, args.port))
+
+        # Running manager
+        manager = Manager()
+        asyncio.ensure_future(manager.start())
+
+        # Runnning worker(s)
+        for i in range(worker_count):
+            worker = Worker(concurent_requests=concurent_requests)
+            manager.workers.append(worker)
+            asyncio.ensure_future(worker.start())
+
+        loop.run_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Stopping API server
+        loop.run_until_complete(runner.cleanup())
+        server.logger.info('Server successfully stopped')
+
+        # Stopping manager
+        loop.run_until_complete(manager.stop())
+        loop.run_until_complete(manager.wait_stop())
+
 
 
 if __name__ == '__main__':

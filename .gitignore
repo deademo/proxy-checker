@@ -4,4 +4,4 @@ __pycache__
 .coverage
 *.db
 settings_local.py
-proxy_checker_pg_data
+proxy_checker_data

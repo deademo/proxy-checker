@@ -8,5 +8,8 @@ WORKDIR /proxy_checker/
 RUN python3 -m pip install --upgrade pip && python3 -m pip install virtualenv && python3 -m virtualenv venv 
 RUN venv/bin/python -m pip install -r proxy_checker/requirements.txt
 
+RUN apk add mariadb-dev --no-cache
+RUN venv/bin/python -m pip install mysqlclient
+
 ADD ./proxy_checker/ /proxy_checker/proxy_checker/
 ADD ./Makefile /proxy_checker/Makefile

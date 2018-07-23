@@ -40,15 +40,38 @@ class Manager:
         self.logger = logging.getLogger(__class__.__name__)
         self.logger.setLevel(settings.LOG_LEVEL)
 
+        self.sync_every = 30
+
+        self.session = entity.get_session()
+
     def put(self, item):
-        self.queue[str(item)] = ProcessItem(item)
+        key = str(item)
+        if key not in self.queue:
+            self.queue[str(item)] = ProcessItem(item)
+            return True
+        else:
+            return False
 
     @property
     def is_running(self):
         return self._is_running
 
+    async def _do_sync_state(self):
+        self.logger.debug('Doing state sync with database')
+        for proxy in self.session.query(entity.Proxy).all():
+            if self.put(proxy):
+                self.logger.debug('Added new queue item: {}'.format(proxy))
+
+    async def sync_state(self):
+        self.logger.info('Manager sync state loop started')
+        while self._is_running and not self._is_need_to_stop:
+            await self._do_sync_state()
+            await asyncio.sleep(self.sync_every)
+        self.logger.info('Manager sync state loop stopped')
+
     async def start(self):
         self.logger.info('Manager main loop started')
+        asyncio.ensure_future(self.sync_state())
 
         self._is_running = True
         while self._is_running and not self._is_need_to_stop:

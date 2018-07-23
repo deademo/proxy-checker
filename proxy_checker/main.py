@@ -25,8 +25,8 @@ def main():
     if args.debug:
         settings.enable_debug_mode()
 
+    session = entity.get_session(database_url=entity.get_sqlite_database_url())
     entity.create_models()
-    session = entity.get_session()
 
     concurent_requests = 50
     workers_count = 5

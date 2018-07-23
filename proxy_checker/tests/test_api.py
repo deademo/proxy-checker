@@ -74,7 +74,7 @@ class TestAPI(asynctest.TestCase):
         self.assertEqual(result, {'result': {'id': 1}, 'error': False})
 
         result = await self.request('list', http_method='post')
-        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'proxy': 'http://google.com:3333'}], 'error': False})   
+        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'is_passed': False, 'proxy': 'http://google.com:3333'}], 'error': False})   
 
     async def test_add_proxy_wrong_parameter(self):
         result = await self.request('add', {'asfd': 'http://google.com:3333'}, http_method='post')
@@ -85,7 +85,7 @@ class TestAPI(asynctest.TestCase):
         self.assertEqual(result, {'result': {'id': 1}, 'error': False})
 
         result = await self.request('list', http_method='post')
-        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'proxy': 'http://google.com:3333'}], 'error': False})
+        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'is_passed': False, 'proxy': 'http://google.com:3333'}], 'error': False})
 
         result = await self.request('remove', {'id': 1}, http_method='post')
         self.assertEqual(result, {'result': 'ok', 'error': False})
