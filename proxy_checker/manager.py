@@ -40,7 +40,7 @@ class Manager:
         self.logger = logging.getLogger(__class__.__name__)
         self.logger.setLevel(settings.LOG_LEVEL)
 
-        self.sync_every = 30
+        self.sync_every = 5
 
         self.session = entity.get_session()
 

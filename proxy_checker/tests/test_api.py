@@ -69,12 +69,19 @@ class TestAPI(asynctest.TestCase):
         result = await self.request('add', {'proxy': 'http://google.com:3333'}, http_method='post')
         self.assertEqual(result, {'result': {'id': 1}, 'error': False})
 
-    async def test_add_proxy_and_list(self):
+    async def test_list(self):
         result = await self.request('add', {'proxy': 'http://google.com:3333'}, http_method='post')
         self.assertEqual(result, {'result': {'id': 1}, 'error': False})
 
         result = await self.request('list', http_method='post')
-        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'is_passed': False, 'proxy': 'http://google.com:3333'}], 'error': False})   
+        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'checks': [], 'is_passed': False, 'recheck_every': None, 'proxy': 'http://google.com:3333'}], 'error': False})   
+
+    async def test_list_recheck_every(self):
+        result = await self.request('add', {'proxy': 'http://google.com:3333', 'recheck_every': 123}, http_method='post')
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('list', http_method='post')
+        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'checks': [], 'is_passed': False, 'recheck_every': 123, 'proxy': 'http://google.com:3333'}], 'error': False})
 
     async def test_add_proxy_wrong_parameter(self):
         result = await self.request('add', {'asfd': 'http://google.com:3333'}, http_method='post')
@@ -84,14 +91,12 @@ class TestAPI(asynctest.TestCase):
         result = await self.request('add', {'proxy': 'http://google.com:3333'}, http_method='post')
         self.assertEqual(result, {'result': {'id': 1}, 'error': False})
 
-        result = await self.request('list', http_method='post')
-        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'is_passed': False, 'proxy': 'http://google.com:3333'}], 'error': False})
-
         result = await self.request('remove', {'id': 1}, http_method='post')
         self.assertEqual(result, {'result': 'ok', 'error': False})
 
         result = await self.request('list', http_method='post')
         self.assertEqual(result, {'result': [], 'error': False})
+
 
     async def test_remove_not_exists_proxy(self):
         result = await self.request('remove', {'id': 123}, http_method='post')
@@ -105,6 +110,7 @@ class TestAPI(asynctest.TestCase):
         definition = {'url': 'http://google.com'}
         result = await self.request('add_check', {'definition': json.dumps(definition)}, http_method='post')
         self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
 
     async def test_add_check_definition_by_name(self):
         definition = {'url': 'http://google.com'}
@@ -256,6 +262,9 @@ class TestAPI(asynctest.TestCase):
         result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_id': 1}, http_method='post')
         self.assertEqual(result, {'result': 'ok', 'error': False})
 
+        result = await self.request('list', http_method='post')
+        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'checks': [{'id': 1, 'name': None}], 'is_passed': False, 'recheck_every': None, 'proxy': 'http://google.com:3333'}], 'error': False})
+
     async def test_add_proxy_check_proxy_no_identifier(self):
         result = await self.request('add_proxy_check', {'check_id': 1}, http_method='post')
         self.assertEqual(result, {
@@ -284,6 +293,9 @@ class TestAPI(asynctest.TestCase):
 
         result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_name': 'test123'}, http_method='post')
         self.assertEqual(result, {'result': 'ok', 'error': False})
+
+        result = await self.request('list', http_method='post')
+        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'checks': [{'id': 1, 'name': 'test123'}], 'is_passed': False, 'recheck_every': None, 'proxy': 'http://google.com:3333'}], 'error': False})
 
     async def test_add_proxy_check_by_name_and_id(self):
         result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_id': 1, 'check_name': 'test123'}, http_method='post')
@@ -378,6 +390,50 @@ class TestAPI(asynctest.TestCase):
             'error': True, 
             'result': 'No "check_id" and "check_name" provided. To identify check should be one of these keys.'
         })
+
+    async def test_remove_proxy_with_checks(self):
+        result = await self.request('add', {'proxy': 'http://google.com:3333'}, http_method='post')
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        definition = {'url': 'http://google.com'}
+        result = await self.request('add_check', {
+                'definition': json.dumps(definition)
+            }, 
+            http_method='post'
+        )
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('list_check', {'id': 1}, http_method='post')
+        self.assertEqual(result, {'result': {
+                'definition': {
+                    'check_xpath': [],
+                    'status': [200],
+                    'timeout': 2,
+                    'url': 'http://google.com'
+                },
+                'id': 1
+            }, 'error': False})
+
+        result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_id': 1}, http_method='post')
+        self.assertEqual(result, {'result': 'ok', 'error': False})
+
+        result = await self.request('list', http_method='post')
+        self.assertEqual(result, {
+            'result': [{
+                'banned_at': [],
+                'checks': [{'id': 1, 'name': None}],
+                'id': 1,
+                'is_passed': False,
+                'proxy': 'http://google.com:3333',
+                'recheck_every': None
+            }],
+            'error': False})
+
+        result = await self.request('remove', {'id': 1}, http_method='post')
+        self.assertEqual(result, {'result': 'ok', 'error': False})
+
+        result = await self.request('list', http_method='post')
+        self.assertEqual(result, {'result': [], 'error': False})
 
     async def test_async_request(self):
         result = await asyncio.gather(*[

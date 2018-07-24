@@ -66,6 +66,17 @@ class Server(web.Application):
         db = await self.db_release()
         return banned_at
 
+    async def _check_to_proxy_map(self):
+        result = {}
+        db = await self.db_aquire()
+        for row in self.db.execute(sql.GET_PROXY_CHECKS).fetchall():
+            row = dict(row)
+            result.setdefault(row['proxy_id'], [])
+            result[row['proxy_id']].append({'id': row['check_definition_id'], 'name': row['name']})
+        db = await self.db_release()
+
+        return result
+
     def _get_bool(self, value):
         return value in settings.TRUE_VALUES
 
@@ -307,12 +318,15 @@ class Server(web.Application):
 
         result = []
         banned_at = await self._ban_map()
+        proxy_checks = await self._check_to_proxy_map()
         for proxy in proxies:
             b = {}
             b['id'] = proxy['id']
             b['proxy'] = '{}://{}:{}'.format(proxy['protocol'], proxy['host'], proxy['port'])
             b['banned_at'] = banned_at.get(proxy['id'], [])
             b['is_passed'] = bool(proxy['is_passed'])
+            b['recheck_every'] = int(proxy['recheck_every']) if proxy['recheck_every'] is not None else proxy['recheck_every']
+            b['checks'] = proxy_checks.get(proxy['id'], [])
             result.append(b)
 
         return Response(text=json.dumps({'result': result, 'error': False}, default=entity.serializer))
@@ -470,8 +484,8 @@ def main():
     parser.add_argument('-p', '--port', required=False, type=int, default=settings.SERVER_PORT)
     args = parser.parse_args()
 
-    worker_count = 1
-    concurent_requests = 50
+    worker_count = 8
+    concurent_requests = 100
 
     loop = asyncio.get_event_loop()
     try:

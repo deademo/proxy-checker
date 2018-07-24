@@ -1,6 +1,7 @@
 import asyncio
 import entity
 import logging
+import time
 
 import settings
 
@@ -16,6 +17,7 @@ class Worker:
         self._internal_queue = []
         self._progress_bar = progress_bar
         self._processed_count = 0
+        self._started_at = time.time()
 
     @property
     def queue_size(self):
@@ -27,6 +29,7 @@ class Worker:
 
     def put(self, item):
         self.queue.put_nowait(item)
+
 
     @property
     def is_have_item_to_process(self):
@@ -42,10 +45,21 @@ class Worker:
         self._progress_bar.total = self.queue_size + self._processed_count
         self._progress_bar.update(1)
 
+    @property
+    def performance(self):
+        delta_time = time.time() - self._started_at
+        return int(self._processed_count/delta_time)
+
+    async def info_loop(self):
+        while self._is_running:
+            self.logger.info('queue_size={}, performance={}'.format(self.queue_size, self.performance))
+            await asyncio.sleep(10)
+
     async def start(self):
         self.logger.info('Worker main loop started')
         self._is_running = True
 
+        asyncio.ensure_future(self.info_loop())
 
         while self._is_running:
             if self.queue.qsize() != 0:

@@ -1,7 +1,7 @@
 _GET_PROXIES = """
 SELECT *
 FROM (
-    SELECT proxy.id, check_result.id as check_id, proxy.protocol, proxy.host, proxy.port, check_result.is_passed, (
+    SELECT proxy.id, check_result.id as check_id, proxy.protocol, proxy.host, proxy.port, check_result.is_passed, proxy.recheck_every, (
         SELECT COUNT(*) 
         FROM proxy_check_definition 
         WHERE proxy_check_definition.proxy_id = proxy.id
@@ -28,4 +28,11 @@ WHERE check_result.is_passed = TRUE
 AND check_result.is_banned = TRUE
 GROUP BY check_result.check_id, proxy.id, check_definition.netloc, check_result.done_at
 ORDER BY check_result.done_at DESC
+"""
+
+
+GET_PROXY_CHECKS = """
+SELECT pcd.proxy_id, pcd.check_definition_id, cd.name
+FROM proxy_check_definition pcd
+INNER JOIN check_definition cd ON cd.id = pcd.check_definition_id
 """
