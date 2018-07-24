@@ -8,10 +8,13 @@ import settings
 
 class ProcessItem:
     def __init__(self, item):
-        self.item = item
-        self._process_every = item.recheck_every
+        self.update(item)
         self._last_processed_at = None
         self._next_process_at = None
+
+    def update(self, item):
+        self.item = item
+        self._process_every = item.recheck_every
 
     def processed(self):
         self._last_processed_at = time.time()
@@ -50,6 +53,7 @@ class Manager:
             self.queue[str(item)] = ProcessItem(item)
             return True
         else:
+            self.queue[str(item)].update(item)
             return False
 
     @property
@@ -61,6 +65,8 @@ class Manager:
         for proxy in self.session.query(entity.Proxy).all():
             if self.put(proxy):
                 self.logger.debug('Added new queue item: {}'.format(proxy))
+        self.session.flush()
+        self.session.commit()
 
     async def sync_state(self):
         self.logger.info('Manager sync state loop started')
@@ -69,9 +75,14 @@ class Manager:
             await asyncio.sleep(self.sync_every)
         self.logger.info('Manager sync state loop stopped')
 
+    async def info_loop(self):
+        while self._is_running and not self._is_need_to_stop:
+            self.logger.info('queue_size={}, performance={}'.format(sum([x.queue_size for x in self.workers]), sum([x.performance for x in self.workers])))
+
     async def start(self):
         self.logger.info('Manager main loop started')
         asyncio.ensure_future(self.sync_state())
+        asyncio.ensure_future(self.info_loop())
 
         self._is_running = True
         while self._is_running and not self._is_need_to_stop:

@@ -267,7 +267,7 @@ class CheckDefinition(Base):
         check_result.status = status
         if isinstance(result, BaseException):
             check_result.error = str(result)
-        proxy.add_check(check_result)
+        get_session().add(check_result)
 
         error = ''
         if isinstance(result, BaseException):
