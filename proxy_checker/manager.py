@@ -78,6 +78,7 @@ class Manager:
     async def info_loop(self):
         while self._is_running and not self._is_need_to_stop:
             self.logger.info('queue_size={}, performance={}'.format(sum([x.queue_size for x in self.workers]), sum([x.performance for x in self.workers])))
+            await asyncio.sleep(10)
 
     async def start(self):
         self.logger.info('Manager main loop started')
