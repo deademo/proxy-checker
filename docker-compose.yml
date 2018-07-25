@@ -3,10 +3,9 @@ version: '3.5'
 services:
   proxy_checker:
     image: deademo/proxy_checker
-    entrypoint: "/proxy_checker/venv/bin/python /proxy_checker/proxy_checker/server.py"
+    command: "/proxy_checker/venv/bin/python /proxy_checker/proxy_checker/server.py"
     volumes: 
-      - ".:/proxy_checker/"
-      - "/proxy_checker/venv"
+      - "./proxy_checker:/proxy_checker/proxy_checker"
     links:
       - mariadb
     ports:

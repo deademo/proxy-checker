@@ -12,11 +12,13 @@ build:
 	docker build -t deademo/proxy_checker .
 
 push:
-	docker tag proxy_checker deademo/proxy_checker
 	docker push deademo/proxy_checker
 
 run:
 	docker-compose up
+
+run_scraper:
+	PYTHONPATH=. SCRAPY_SETTINGS_MODULE=proxy_scraper.settings venv/bin/python -m scrapy runspider proxy_scraper/spiders/free_proxy_list_net.py
 
 clean_docker:
 	docker-compose kill
