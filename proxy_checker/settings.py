@@ -2,6 +2,7 @@ import logging
 
 DEBUG_MODE = False
 SQL_LOG_ENABLED = False
+SHOW_RESPONSE_BODY = False
 
 LOG_LEVEL = logging.INFO
 PROGRESS_BAR_ENABLED = False

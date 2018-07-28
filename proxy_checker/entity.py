@@ -234,6 +234,8 @@ class CheckDefinition(Base):
                 any_xpath_worked = False
                 try:
                     doc = lxml.html.fromstring(content)
+                    if settings.SHOW_RESPONSE_BODY:
+                        self.logger.info(content)
                     for xpath in self.check_xpath:
                         xpath_result = doc.xpath(xpath)
                         if xpath_result:
