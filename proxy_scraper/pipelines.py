@@ -21,4 +21,5 @@ class ProxyPipeline:
         return self.client.add(
             ip=item['ip'],
             port=item['port'],
+            checks=item.get('checks'),
         )
