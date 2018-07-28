@@ -3,14 +3,22 @@ import urllib.parse
 
 import treq
 
+from proxy_scraper.client import ProxyCheckerClient
+
 
 class ProxyPipeline:
-    def process_item(self, item, spider):
-        proxy_string = '{}:{}'.format(item['ip'], item['port'])
-        url = 'http://{}:{}/add?proxy={}'.format(
-            spider.settings['PROXY_CHECKER_HOST'],
-            spider.settings['PROXY_CHECKER_PORT'],
-            proxy_string
+    @classmethod
+    def from_crawler(cls, crawler):
+        settings = crawler.settings
+        obj = cls()
+        obj.client = ProxyCheckerClient(
+            host=settings.get('PROXY_CHECKER_HOST'),
+            port=settings.get('PROXY_CHECKER_PORT'),
         )
-        
-        return item
+        return obj
+
+    def process_item(self, item, spider):
+        return self.client.add(
+            ip=item['ip'],
+            port=item['port'],
+        )
