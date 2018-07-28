@@ -19,6 +19,7 @@ run:
 
 run_scraper:
 	PYTHONPATH=. SCRAPY_SETTINGS_MODULE=proxy_scraper.settings venv/bin/python -m scrapy runspider proxy_scraper/spiders/free_proxy_list_net.py
+	PYTHONPATH=. SCRAPY_SETTINGS_MODULE=proxy_scraper.settings venv/bin/python -m scrapy runspider proxy_scraper/spiders/spys_one.py
 
 clean_docker:
 	docker-compose kill
