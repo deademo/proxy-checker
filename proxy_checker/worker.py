@@ -50,16 +50,9 @@ class Worker:
         delta_time = time.time() - self._started_at
         return int(self._processed_count/delta_time)
 
-    async def info_loop(self):
-        while self._is_running:
-            self.logger.info('queue_size={}, performance={}'.format(self.queue_size, self.performance))
-            await asyncio.sleep(10)
-
     async def start(self):
         self.logger.info('Worker main loop started')
         self._is_running = True
-
-        asyncio.ensure_future(self.info_loop())
 
         while self._is_running:
             if self.queue.qsize() != 0:

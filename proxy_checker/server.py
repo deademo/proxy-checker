@@ -103,11 +103,15 @@ class Server(web.Application):
 
         # Recheck every checks
         query['recheck_every'] = request.query.get('recheck_every')
-        if query['recheck_every'] is not None:
+        if query['recheck_every'] is None:
+            pass
+        elif query['recheck_every'] in (False, 'False', 'false'):
+            query['recheck_every'] = False
+        else:
             try:
                 query['recheck_every'] = int(query['recheck_every'])
             except (ValueError, TypeError):
-                raise APIException('Value of attribute \'recheck_every\' should be int or number as string, but \'{}\' got'.format(query['recheck_every']))
+                raise APIException('Value of attribute \'recheck_every\' should be int, number as string or False, but \'{}\' got'.format(query['recheck_every']))
 
         return query
 
@@ -298,7 +302,10 @@ class Server(web.Application):
             return Response(text=json.dumps({'result': str(e), 'error': True}))
 
         proxy = entity.parse_proxy_string(query['proxy'])
-        proxy.recheck_every = query['recheck_every'] or self.recheck_every
+        if query['recheck_every']:
+            proxy.recheck_every = query['recheck_every']
+        elif query['recheck_every'] is None:
+            proxy.recheck_every = self.recheck_every
 
         db = await self.db_aquire()
         db.add(proxy)
