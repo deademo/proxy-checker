@@ -2,7 +2,9 @@ import asyncio
 import argparse
 import json
 import logging
+import os
 import urllib.parse
+import uuid
 
 from aiohttp import web
 from aiohttp.web import Response
@@ -22,7 +24,7 @@ class APIException(BaseException):
 
 
 class Server(web.Application):
-    def __init__(self, *args, db=None, **kwargs):
+    def __init__(self, *args, db=None, loop=None, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.router.add_get('/list', self.list)
@@ -35,6 +37,8 @@ class Server(web.Application):
         self.router.add_post('/remove_check', self.remove_check)
         self.router.add_post('/add_proxy_check', self.add_proxy_check)
         self.router.add_post('/remove_proxy_check', self.remove_proxy_check)
+
+        self.on_startup.append(self._load_default_checks)
 
         if not db:
             self.db = entity.get_session()
@@ -71,8 +75,13 @@ class Server(web.Application):
         db = await self.db_aquire()
         for row in self.db.execute(sql.GET_PROXY_CHECKS).fetchall():
             row = dict(row)
+
+            name = row['name']
+            if isinstance(name, str) and name.startswith('__'):
+                name = None
+
             result.setdefault(row['proxy_id'], [])
-            result[row['proxy_id']].append({'id': row['check_definition_id'], 'name': row['name']})
+            result[row['proxy_id']].append({'id': row['check_definition_id'], 'name': name})
         db = await self.db_release()
 
         return result
@@ -80,6 +89,31 @@ class Server(web.Application):
     @property
     def recheck_every(self):
         return settings.DEFAULT_RECHECK_EVERY
+
+    async def _load_default_checks(self, app):
+        self.logger.info('Reading default checks...')
+        default_check_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'default_check')
+        for file in os.listdir(default_check_path):
+            if not file.endswith('.json'):
+                continue
+            file_path = os.path.join(default_check_path, file)
+            with open(file_path) as f:
+                content = f.read()
+            try:
+                definition = json.loads(content)
+            except json.decoder.JSONDecodeError as e:
+                self.logger.warning('JSON is unvaild in default check: {}'.format(file))
+                continue
+            self.logger.info('Found valid default check in file: {}'.format(file))
+
+            check_name = 'default_{}'.format(file.rstrip('.json'))
+            is_exist, check = await self._do_add_check(definition=definition, name=check_name)
+            if is_exist:
+                self.logger.debug('Check from "{}" file with name "{}" already exists'.format(file, check_name))
+
+    @property
+    def uuid(self):
+        return '__'+uuid.uuid4().hex
 
     def _get_bool(self, value):
         return value in settings.TRUE_VALUES
@@ -119,10 +153,10 @@ class Server(web.Application):
         query = {}
 
         for key in request.query.keys():
-            if key not in ('is_alive', ):
+            if key not in ('alive_only', ):
                 raise APIException('Attribute \'{}\' is not allowed in \'list\' method'.format(key))
 
-        query['is_alive'] = self._get_bool(request.query.get('is_alive'))
+        query['alive_only'] = self._get_bool(request.query.get('alive_only'))
 
         return query
 
@@ -358,27 +392,41 @@ class Server(web.Application):
 
         return Response(text=json.dumps(result, default=entity.serializer))
 
+    async def _do_add_check(self, definition, name=None):
+        is_exists, check = False, None
+        db = await self.db_aquire()
+        try:
+            check = entity.Check(name=name, **definition)
+            db.add(check)
+            db.commit()
+            db.flush()
+        except sqlalchemy.exc.IntegrityError:
+            db.rollback()
+            is_exists = True
+        finally:
+            await self.db_release()
+        is_exists = is_exists or getattr(check, '__is_exists')
+        return is_exists, check
+
     async def add_check(self, request):
         try:
             query = self.add_check_validate(request)
         except APIException as e:
             return Response(text=json.dumps({'result': str(e), 'error': True}))
 
-        db = await self.db_aquire()
-        try:
-            check = entity.Check(name=query.get('name'), **query['definition'])
-            db.commit()
-        except sqlalchemy.exc.IntegrityError:
+        is_exists, check = await self._do_add_check(
+            definition=query['definition'],
+            name=query.get('name'),
+        )
+
+        if is_exists:
             return Response(text=json.dumps({
                 'result': 'Check already exists with same definition or name', 
                 'error': True
             }))
-        finally:
-            await self.db_release()
-
 
         check_item = {'id': check.id}
-        if check.name:
+        if check.name and isinstance(check.name, str) and not check.name.startswith('__'):
             check_item['name'] = check.name
         result = {'result': check_item, 'error': False}
 
@@ -482,8 +530,8 @@ class Server(web.Application):
         return self._response({'result': 'ok' if is_really_removed else 'not_exists', 'error': False})
 
 
-async def get_server(host, port):
-    server = Server()
+async def get_server(host, port, loop=None):
+    server = Server(loop=loop)
     runner = web.AppRunner(server)
     await runner.setup()
     site = web.TCPSite(runner, host, port)
@@ -496,13 +544,13 @@ def main():
     parser.add_argument('-p', '--port', required=False, type=int, default=settings.SERVER_PORT)
     args = parser.parse_args()
 
-    worker_count = 8
-    concurent_requests = 100
+    worker_count = 1
+    concurent_requests = 50
 
     loop = asyncio.get_event_loop()
     try:
         # Running server
-        runner, site, server = loop.run_until_complete(get_server(args.host, args.port))
+        runner, site, server = loop.run_until_complete(get_server(args.host, args.port, loop=loop))
         asyncio.ensure_future(site.start())
         server.logger.info('Started server on {}:{}'.format(args.host, args.port))
 

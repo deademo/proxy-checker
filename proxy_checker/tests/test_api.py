@@ -1,3 +1,16 @@
+"""
+TODO:
+ - add check definition xpath list tests
+ - add check when we 
+   add to proxy new check, 
+   check is failed,
+   then remove that check from proxy 
+   and it is not affect on is proxy alive
+ - make check result works with proxy string instead id as we can remove proxy and lost id
+ - fix time of check result in DB
+"""
+
+
 import asyncio
 import json
 import os
@@ -22,6 +35,8 @@ class TestAPI(asynctest.TestCase):
         self.db_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), self.db_file_path)
         self.database_url = entity.get_sqlite_database_url(self.db_file_path)
         entity.create_models(engine=entity.get_engine(database_url=self.database_url))
+
+        server.Server._load_default_checks = asynctest.mock.CoroutineMock()
         self.app = server.Server(db=entity.get_session(database_url=self.database_url))
         self.app.logger.propagate = False
 
@@ -142,7 +157,7 @@ class TestAPI(asynctest.TestCase):
         self.assertEqual(result, {'result': {'id': 1}, 'error': False})
 
         result = await self.request('add_check', {'definition': json.dumps(definition)}, http_method='post')
-        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+        self.assertEqual(result, {'result': 'Check already exists with same definition or name', 'error': True})
 
     async def test_add_check_definition_dublicate_by_name(self):
         definition = {'url': 'http://google.com'}

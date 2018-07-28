@@ -1,0 +1,11 @@
+{
+    "url": "https://www.google.com/search?q=google+wiki&oq=google+wiki",
+    "status": [200],
+    "xpath_list": [{
+        "type": "alive",
+        "xpath": ".//input[@value=\"google wiki\"]"
+    },{
+        "type": "ban",
+        "xpath": ".//*[@class=\"g-recaptcha\"]"
+    }]
+}

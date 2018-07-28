@@ -244,6 +244,9 @@ class CheckDefinition(Base):
                             is_banned = True
                 except (lxml.etree.ParserError, lxml.etree.XMLSyntaxError):
                     pass
+                except lxml.etree.XPathEvalError as e:
+                    self.logger.warning('XPath is wrong: {}'.format(xpath))
+                    raise e
                 if not any_xpath_worked:
                     is_passed = False
                     # self.logger.debug('No any xpath worked for proxy {} on url {} ({}):'.format(proxy, self.url, ", ".join(self.check_xpath))) #DELETE_DEBUG
@@ -274,11 +277,11 @@ class CheckDefinition(Base):
         error = ''
         if isinstance(result, BaseException):
             error = ', error: {}'.format(str(result))
-        self.logger.debug('Finished check (is passed: {}) for {} on {} by {:0.3f} s{}'.format(is_passed, proxy, self.url, delta_time, error))
+        self.logger.info('Finished check (is passed: {}) for {} on {} by {:0.3f} s{}'.format(is_passed, proxy, self.url, delta_time, error))
         return check_result
 
 
-def make_check_definition(url, status=200, xpath=[], timeout=None):
+def make_check_definition(url, status=200, xpath_list=[], timeout=None):
     check = {}
     check['url'] = url
     check['timeout'] = timeout or settings.DEFAULT_TIMEOUT
@@ -290,10 +293,17 @@ def make_check_definition(url, status=200, xpath=[], timeout=None):
     else:
         check['status'] = [int(status)]
 
-    xpath = [xpath] if isinstance(xpath, str) else xpath
+    xpath = [xpath_list] if isinstance(xpath_list, str) else xpath_list
     check['check_xpath'] = []
-    for item in xpath:
+    for item in xpath_list:
         buffer_xpath = {}
+
+        if isinstance(item, dict):
+            if item.get('type') == 'ban':
+                item = xpath_check.BanXPathCheck(item['xpath'])
+            else:
+                item = xpath_check.XPathCheck(item['xpath'])
+
         buffer_xpath['xpath'] = item
         if isinstance(item, xpath_check.BanXPathCheck):
             buffer_xpath['type'] = 'ban'
@@ -403,12 +413,14 @@ def get_or_create(model, session=None, defaults=None, **kwargs):
     instance = session.query(model).filter_by(**kwargs).first()
     if instance:
         instance.__init__()
+        instance.__is_exists = True
         return instance
     else:
         params = dict((k, v) for k, v in kwargs.items() if not isinstance(v, ClauseElement))
         params.update(defaults or {})
         instance = model(**params)
         session.add(instance)
+        instance.__is_exists = False
         return instance
 
 
