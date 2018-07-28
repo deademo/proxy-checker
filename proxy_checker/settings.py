@@ -20,6 +20,18 @@ def enable_debug_mode():
     LOG_LEVEL = logging.DEBUG
     PROGRESS_BAR_ENABLED = False
 
+    loggers = [
+        'aiohttp.access',
+        'aiohttp.client',
+        'aiohttp.internal',
+        'aiohttp.server',
+        'aiohttp.web',
+        'aiohttp.websocket'
+    ]
+
+    for logger_name in loggers:
+        logging.getLogger(logger_name).setLevel(LOG_LEVEL)
+
 if DEBUG_MODE:
     enable_debug_mode()
 
