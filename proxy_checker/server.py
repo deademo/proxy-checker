@@ -77,6 +77,10 @@ class Server(web.Application):
 
         return result
 
+    @property
+    def recheck_every(self):
+        return settings.DEFAULT_RECHECK_EVERY
+
     def _get_bool(self, value):
         return value in settings.TRUE_VALUES
 
@@ -294,12 +298,13 @@ class Server(web.Application):
             return Response(text=json.dumps({'result': str(e), 'error': True}))
 
         proxy = entity.parse_proxy_string(query['proxy'])
-        proxy.recheck_every = query['recheck_every']
+        proxy.recheck_every = query['recheck_every'] or self.recheck_every
 
         db = await self.db_aquire()
         db.add(proxy)
         db.commit()
         await self.db_release()
+        self.logger.info('Added proxy: {}'.format(query['proxy']))
 
         return Response(text=json.dumps({'result': {'id': proxy.id}, 'error': False}))
 

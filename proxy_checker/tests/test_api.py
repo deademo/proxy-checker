@@ -23,6 +23,7 @@ class TestAPI(asynctest.TestCase):
         self.database_url = entity.get_sqlite_database_url(self.db_file_path)
         entity.create_models(engine=entity.get_engine(database_url=self.database_url))
         self.app = server.Server(db=entity.get_session(database_url=self.database_url))
+        self.app.logger.propagate = False
 
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
@@ -74,7 +75,7 @@ class TestAPI(asynctest.TestCase):
         self.assertEqual(result, {'result': {'id': 1}, 'error': False})
 
         result = await self.request('list', http_method='post')
-        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'checks': [], 'is_passed': False, 'recheck_every': None, 'proxy': 'http://google.com:3333'}], 'error': False})   
+        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'checks': [], 'is_passed': False, 'recheck_every': 3600, 'proxy': 'http://google.com:3333'}], 'error': False})   
 
     async def test_list_recheck_every(self):
         result = await self.request('add', {'proxy': 'http://google.com:3333', 'recheck_every': 123}, http_method='post')
@@ -82,6 +83,13 @@ class TestAPI(asynctest.TestCase):
 
         result = await self.request('list', http_method='post')
         self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'checks': [], 'is_passed': False, 'recheck_every': 123, 'proxy': 'http://google.com:3333'}], 'error': False})
+
+    async def test_list_recheck_every_default(self):
+        result = await self.request('add', {'proxy': 'http://google.com:3333'}, http_method='post')
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('list', http_method='post')
+        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'checks': [], 'is_passed': False, 'recheck_every': 3600, 'proxy': 'http://google.com:3333'}], 'error': False})
 
     async def test_add_proxy_wrong_parameter(self):
         result = await self.request('add', {'asfd': 'http://google.com:3333'}, http_method='post')
@@ -263,7 +271,7 @@ class TestAPI(asynctest.TestCase):
         self.assertEqual(result, {'result': 'ok', 'error': False})
 
         result = await self.request('list', http_method='post')
-        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'checks': [{'id': 1, 'name': None}], 'is_passed': False, 'recheck_every': None, 'proxy': 'http://google.com:3333'}], 'error': False})
+        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'checks': [{'id': 1, 'name': None}], 'is_passed': False, 'recheck_every': 3600, 'proxy': 'http://google.com:3333'}], 'error': False})
 
     async def test_add_proxy_check_proxy_no_identifier(self):
         result = await self.request('add_proxy_check', {'check_id': 1}, http_method='post')
@@ -295,7 +303,7 @@ class TestAPI(asynctest.TestCase):
         self.assertEqual(result, {'result': 'ok', 'error': False})
 
         result = await self.request('list', http_method='post')
-        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'checks': [{'id': 1, 'name': 'test123'}], 'is_passed': False, 'recheck_every': None, 'proxy': 'http://google.com:3333'}], 'error': False})
+        self.assertEqual(result, {'result': [{'banned_at': [], 'id': 1, 'checks': [{'id': 1, 'name': 'test123'}], 'is_passed': False, 'recheck_every': 3600, 'proxy': 'http://google.com:3333'}], 'error': False})
 
     async def test_add_proxy_check_by_name_and_id(self):
         result = await self.request('add_proxy_check', {'proxy_id': 1, 'check_id': 1, 'check_name': 'test123'}, http_method='post')
@@ -425,7 +433,7 @@ class TestAPI(asynctest.TestCase):
                 'id': 1,
                 'is_passed': False,
                 'proxy': 'http://google.com:3333',
-                'recheck_every': None
+                'recheck_every': 3600
             }],
             'error': False})
 

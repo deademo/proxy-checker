@@ -30,6 +30,8 @@ DB = {
     'database': 'proxy_checker',
 }
 
+DEFAULT_RECHECK_EVERY = 3600
+
 try:
     from settings_local import *
 except ImportError:
