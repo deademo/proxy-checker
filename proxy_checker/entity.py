@@ -12,6 +12,7 @@ import aiohttp
 import async_timeout
 import aiosocksy
 from aiosocksy.connector import ProxyConnector, ProxyClientRequest
+import cachetools.func
 import lxml.html
 from sqlalchemy import create_engine
 from sqlalchemy import (Column, Boolean, Integer, String, ForeignKey, 
@@ -217,8 +218,11 @@ class CheckDefinition(Base):
         start_time = time.time()
 
         try:
+            is_port_open = await check_port_open(proxy.host, proxy.port)
+            if not is_port_open:
+                raise concurrent.futures._base.TimeoutError('Could not open connection')
             async with async_timeout.timeout(self.timeout):
-                async with aiohttp.ClientSession(connector=ProxyConnector(verify_ssl=False), request_class=ProxyClientRequest, conn_timeout=self.timeout, read_timeout=self.timeout) as session:
+                async with aiohttp.ClientSession(connector=ProxyConnector(verify_ssl=False, limit=0), request_class=ProxyClientRequest, conn_timeout=self.timeout, read_timeout=self.timeout) as session:
                     async with session.get(self.url, proxy=str(proxy), headers=random_session()['headers']) as response:
                         content = await response.read()
                         # self.logger.debug('Got response [{}]: {} bytes'.format(response.status, len(content))) #DELETE_DEBUG
@@ -303,6 +307,8 @@ def make_check_definition(url, status=200, xpath_list=[], timeout=None):
                 item = xpath_check.BanXPathCheck(item['xpath'])
             else:
                 item = xpath_check.XPathCheck(item['xpath'])
+        elif isinstance(item, str):
+            item = xpath_check.XPathCheck(item)
 
         buffer_xpath['xpath'] = item
         if isinstance(item, xpath_check.BanXPathCheck):
@@ -316,12 +322,13 @@ def make_check_definition(url, status=200, xpath_list=[], timeout=None):
 def Check(*args, name=None, **kwargs):
     check_definition = make_check_definition(*args, **kwargs)
     netloc = urllib.parse.urlparse(check_definition['url']).netloc
-    return get_or_create(
+    result = get_or_create(
         CheckDefinition, 
         definition=json.dumps(check_definition),
         name=name,
         netloc=netloc,
     )
+    return result
 
 
 class MultiCheck:
@@ -329,6 +336,8 @@ class MultiCheck:
         self.checks = args
 
     async def check(self, proxy):
+        max_timeout = max([x.timeout for x in self.checks])/len(self.checks)
+        await check_port_open(proxy.host, proxy.port, timeout=max_timeout) # cache warm
         return await asyncio.gather(*[check.check(proxy) for check in self.checks])
 
 
@@ -422,6 +431,22 @@ def get_or_create(model, session=None, defaults=None, **kwargs):
         session.add(instance)
         instance.__is_exists = False
         return instance
+
+
+async def check_port_open(host, port, timeout=3):
+    cache_key = '{}:{}'.format(host, port)
+    cache_result = check_port_open.cache.get(cache_key, None)
+    if cache_result is not None:
+        return cache_result
+    try:
+        await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
+        result = True
+    except:
+        result = False
+    finally:
+        check_port_open.cache[cache_key] = result
+        return result
+check_port_open.cache = cachetools.TTLCache(maxsize=65536, ttl=60, timer=time.time)
 
 
 def serializer(obj):
