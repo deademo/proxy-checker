@@ -213,16 +213,16 @@ class Server(web.Application):
         else:
             del query['status']
 
-        query['xpath'] = definition.get('xpath')
-        if query['xpath'] is not None:
-            if not isinstance(query['xpath'], list):
-                raise APIException('Value of attribute \'xpath\' should be list, but \'{}\' got'.format(query['xpath']))
-            for xpath_item in query['xpath']:
-                if not isinstance(xpath_item, str):
-                    raise APIException('Value of attribute list \'xpath\' should be str, but \'{}\' got'.format(xpath_item))
+        query['xpath_list'] = definition.get('xpath_list')
+        if query['xpath_list'] is not None:
+            if not isinstance(query['xpath_list'], list):
+                raise APIException('Value of attribute \'xpath\' should be list, but \'{}\' got'.format(query['xpath_list']))
+            for xpath_item in query['xpath_list']:
+                if not isinstance(xpath_item, dict):
+                    raise APIException('Value of attribute list \'xpath\' should be dict, but \'{}\' got'.format(xpath_item))
                 xpath_item['type'] = 'ban' if xpath_item.get('type') == 'ban' else 'alive'
         else:
-            del query['xpath']
+            del query['xpath_list']
 
         query['timeout'] = definition.get('timeout')
         if query['timeout'] is not None:

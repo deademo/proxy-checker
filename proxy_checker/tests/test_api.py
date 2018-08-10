@@ -178,6 +178,22 @@ class TestAPI(asynctest.TestCase):
         )
         self.assertEqual(result, {'result': 'Check already exists with same definition or name', 'error': True})
 
+    async def test_list_check_definition_xpath_list(self):
+        definition = {'url': 'http://google.com', 'xpath_list': [{'type': 'ban', 'xpath': './/test'}]}
+        result = await self.request('add_check', {'definition': json.dumps(definition)}, http_method='post')
+        self.assertEqual(result, {'result': {'id': 1}, 'error': False})
+
+        result = await self.request('list_check', {'id': 1}, http_method='post')
+        self.assertEqual(result, {'result': {
+                'definition': {
+                    'check_xpath': [{'type': 'ban', 'xpath': './/test'}],
+                    'status': [200],
+                    'timeout': 2,
+                    'url': 'http://google.com'
+                },
+                'id': 1
+            }, 'error': False})
+
     async def test_list_check_definition(self):
         definition = {'url': 'http://google.com'}
         result = await self.request('add_check', {'definition': json.dumps(definition)}, http_method='post')
