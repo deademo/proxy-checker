@@ -25,6 +25,9 @@ clean_docker:
 	docker-compose kill
 	docker-compose down
 
+remove_db:
+	rm -rf proxy_checker_data
+
 restart: clean_docker run
 
 enter:

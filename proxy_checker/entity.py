@@ -66,6 +66,10 @@ class Proxy(Base):
     __tablename__ = 'proxy'
     __table_args__ = (UniqueConstraint('host', 'port', 'protocol', name='proxy_uix'), )
 
+    def __init__(self, *args, **kwargs):
+        self._on_all_checks_finished = None
+        super().__init__(*args, **kwargs)
+
     id = Column(Integer, primary_key=True)
     host = Column(String(1024))
     port = Column(String(1024))
@@ -128,6 +132,13 @@ class Proxy(Base):
     @property
     def banned_on(self):
         return [x.check.netloc for x in self.last_checks if x.is_banned]
+
+    async def on_check_executed(self):
+        if self._on_all_checks_finished:
+            await self._on_all_checks_finished()
+
+    def set_on_all_checks_finished(self, callback):
+        self._on_all_checks_finished = callback
 
 
 class ProxyCheckDefinition(Base):
@@ -277,6 +288,7 @@ class CheckDefinition(Base):
         if isinstance(result, BaseException):
             check_result.error = str(result)
         get_session().add(check_result)
+        await proxy.on_check_executed()
 
         error = ''
         if isinstance(result, BaseException):
@@ -364,9 +376,17 @@ class CheckResult(Base):
         return '<{} {} proxy={} time={:0.0f}ms>'.format(__class__.__name__, self.is_passed, self.proxy, self.time*1000)
 
 
+class ProxyLevel(Base):
+    __tablename__ = 'proxy_level'
+
+    id = Column(Integer, primary_key=True)
+    host = Column(String(1024))
+    port = Column(String(1024))
+    level = Column(Integer)
+
+
 Proxy.checks = relationship('CheckResult', order_by=CheckResult.id, back_populates='proxy')
 Proxy._check_definitions = relationship('ProxyCheckDefinition', order_by=ProxyCheckDefinition.id, back_populates='proxy')
-
 
 def create_models(engine=None):
     if not engine:
@@ -392,12 +412,18 @@ def get_database_url():
     return 'mysql://{user}:{password}@{host}/{database}'.format(**settings.DB)
 
 
-def get_sqlite_database_url(db_file_name=None):
+def get_sqlite_database_path(db_file_name=None):
     import os
     db_dir_path = os.path.abspath(os.path.dirname(__file__))
     db_file_name = db_file_name or 'default.db'
     db_path = os.path.join(db_dir_path, db_file_name)
-    return 'sqlite:///{}'.format(db_path)
+    return db_path
+
+def get_sqlite_database_url(db_path=None):
+    return 'sqlite:///{}'.format(db_path or get_sqlite_database_path())
+
+def get_sqlite_inmemory_url():
+    return 'sqlite://'
 
 
 def get_engine(database_url=None, force=False):
