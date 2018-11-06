@@ -10,3 +10,6 @@ RUN venv/bin/python -m pip install -r proxy_checker/requirements.txt
 
 COPY ./proxy_checker/ /proxy_checker/proxy_checker/
 COPY ./Makefile /proxy_checker/Makefile
+
+ENTRYPOINT ["/proxy_checker/venv/bin/python", "/proxy_checker/proxy_checker/check_file.py"]
+CMD []
